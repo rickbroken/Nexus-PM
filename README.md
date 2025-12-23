@@ -81,7 +81,7 @@ O lee la solución completa: **[`SOLUCION_ERROR_LOGIN.md`](./SOLUCION_ERROR_LOGI
 
 1. **Configura la base de datos**: Sigue [`/database/QUICK_START.md`](./database/QUICK_START.md)
 2. **Crea los usuarios**: Usa las credenciales en la guía Quick Start
-3. **Configura el proyecto**: Actualiza `/utils/supabase/info.tsx` con tus credenciales
+3. **Configura el proyecto**: Define las variables de entorno `VITE_SUPABASE_PROYECT_ID` y `VITE_SUPABASE_ANON_KEY`
 4. **¡Inicia sesión!** Usa los botones de acceso rápido en la pantalla de login
 
 **Opción B: Instalación Clásica (Legado)**
@@ -213,7 +213,9 @@ O lee la solución completa: **[`SOLUCION_ERROR_LOGIN.md`](./SOLUCION_ERROR_LOGI
 5. Obtén las credenciales de tu proyecto:
    - Ve a Project Settings → API
    - Copia el `Project URL` y `anon public` key
-   - Actualiza `/utils/supabase/info.tsx` con tus credenciales
+   - Configura estas variables en tu `.env`:
+     - `VITE_SUPABASE_PROYECT_ID`
+     - `VITE_SUPABASE_ANON_KEY`
 
 ### 2. Configurar Variables de Entorno
 
@@ -311,9 +313,6 @@ nexuspm/
 │   │       ├── index.tsx       # Servidor Hono
 │   │       └── kv_store.tsx    # KV store (protegido)
 │   └── schema.sql              # Schema completo DB
-├── utils/
-│   └── supabase/
-│       └── info.tsx            # Credenciales Supabase
 └── package.json
 ```
 
@@ -413,7 +412,7 @@ supabase functions logs make-server-17d656ff
 ### Problemas Comunes
 
 **Error de autenticación**:
-- Verifica que las credenciales en `utils/supabase/info.tsx` sean correctas
+- Verifica que `VITE_SUPABASE_PROYECT_ID` y `VITE_SUPABASE_ANON_KEY` estén configuradas correctamente
 - Asegúrate de que el usuario tenga un perfil en `users_profiles`
 
 **RLS bloquea consultas**:
