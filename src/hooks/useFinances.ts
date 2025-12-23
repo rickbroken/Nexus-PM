@@ -3,7 +3,9 @@ import { supabase, Payment, ProjectCost, RecurringCharge, PaymentMethod } from '
 import { toast } from 'sonner';
 import Swal from 'sweetalert2';
 import { useAuthStore } from '../stores/authStore';
-import { projectId, publicAnonKey } from '../../utils/supabase/info';
+
+const projectId = import.meta.env.VITE_SUPABASE_PROYECT_ID;
+const publicAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 const SERVER_URL = `https://${projectId}.supabase.co/functions/v1/make-server-17d656ff`;
 

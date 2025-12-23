@@ -2,7 +2,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase, UserProfile } from '../lib/supabase';
 import { toast } from 'sonner';
 import Swal from 'sweetalert2';
-import { projectId } from '../../utils/supabase/info';
+
+const projectId = import.meta.env.VITE_SUPABASE_PROYECT_ID;
 
 export function useUsers() {
   return useQuery({

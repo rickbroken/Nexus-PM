@@ -1,5 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { projectId, publicAnonKey } from '../../utils/supabase/info';
+
+const projectId = import.meta.env.VITE_SUPABASE_PROYECT_ID;
+const publicAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 export interface KanbanColors {
   dev: {

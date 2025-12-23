@@ -1,5 +1,7 @@
 import { useEffect } from 'react';
-import { projectId, publicAnonKey } from '../../utils/supabase/info';
+
+const VITE_SUPABASE_PROYECT_ID = import.meta.env.VITE_SUPABASE_PROYECT_ID;
+const VITE_SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 /**
  * Hook para ejecutar auto-archivo de tareas cada hora
@@ -10,11 +12,11 @@ export function useAutoArchiveTasks() {
     const runAutoArchive = async () => {
       try {
         const response = await fetch(
-          `https://${projectId}.supabase.co/functions/v1/make-server-17d656ff/tasks/auto-archive`,
+          `https://${VITE_SUPABASE_PROYECT_ID}.supabase.co/functions/v1/make-server-17d656ff/tasks/auto-archive`,
           {
             method: 'POST',
             headers: {
-              'Authorization': `Bearer ${publicAnonKey}`,
+              'Authorization': `Bearer ${VITE_SUPABASE_ANON_KEY}`,
               'Content-Type': 'application/json',
             },
           }
