@@ -1,0 +1,156 @@
+@import "tailwindcss";
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+  }
+
+  h1 {
+    @apply scroll-m-20 text-4xl font-extrabold tracking-tight lg:text-5xl;
+  }
+
+  h2 {
+    @apply scroll-m-20 border-b pb-2 text-3xl font-semibold tracking-tight first:mt-0;
+  }
+
+  h3 {
+    @apply scroll-m-20 text-2xl font-semibold tracking-tight;
+  }
+
+  h4 {
+    @apply scroll-m-20 text-xl font-semibold tracking-tight;
+  }
+
+  p {
+    @apply leading-7 [&:not(:first-child)]:mt-6;
+  }
+
+  /* Scrollbar personalizado para navegadores WebKit */
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: rgb(156 163 175);
+    border-radius: 3px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background: rgb(107 114 128);
+  }
+
+  /* Fix z-index para SweetAlert2 - debe estar por encima de modales (z-50) */
+  .swal2-container,
+  .swal2-container-custom {
+    z-index: 99999 !important;
+  }
+
+  .swal2-popup,
+  .swal2-popup-custom {
+    z-index: 99999 !important;
+  }
+
+  /* Asegurar que el backdrop de SweetAlert2 también esté por encima */
+  .swal2-container::before {
+    z-index: 99998 !important;
+  }
+
+  /* Posicionamiento personalizado para Sonner toasts - alineado con la campana de notificaciones */
+  [data-sonner-toaster] {
+    top: 64px !important; /* Altura del header */
+    right: 16px !important; /* Alineado con el padding del header (px-4 = 16px) */
+  }
+
+  [data-sonner-toaster][data-x-position='right'] {
+    right: 16px !important;
+  }
+
+  @media (min-width: 1024px) {
+    [data-sonner-toaster] {
+      right: 32px !important; /* Alineado con lg:px-8 = 32px */
+    }
+
+    [data-sonner-toaster][data-x-position='right'] {
+      right: 32px !important;
+    }
+  }
+}
+
+@theme {
+  /* ===================================
+     TEMA CLARO (Light Mode)
+     =================================== */
+  --color-background: #ffffff;
+  --color-foreground: #09090b;
+  --color-card: #ffffff;
+  --color-card-foreground: #09090b;
+  --color-popover: #ffffff;
+  --color-popover-foreground: #09090b;
+  --color-primary: #18181b;
+  --color-primary-foreground: #fafafa;
+  --color-secondary: #f4f4f5;
+  --color-secondary-foreground: #18181b;
+  --color-muted: #f4f4f5;
+  --color-muted-foreground: #71717a;
+  --color-accent: #f4f4f5;
+  --color-accent-foreground: #18181b;
+  --color-destructive: #ef4444;
+  --color-destructive-foreground: #fafafa;
+  --color-border: #e4e4e7;
+  --color-input: #e4e4e7;
+  --color-ring: #18181b;
+  
+  /* ===================================
+     TEMA OSCURO (Dark Mode - GitHub)
+     =================================== */
+  --color-dark-background: #0d1117;
+  --color-dark-foreground: #c9d1d9;
+  --color-dark-card: #161b22;
+  --color-dark-card-foreground: #c9d1d9;
+  --color-dark-popover: #161b22;
+  --color-dark-popover-foreground: #c9d1d9;
+  --color-dark-primary: #58a6ff;
+  --color-dark-primary-foreground: #0d1117;
+  --color-dark-secondary: #21262d;
+  --color-dark-secondary-foreground: #c9d1d9;
+  --color-dark-muted: #21262d;
+  --color-dark-muted-foreground: #8b949e;
+  --color-dark-accent: #21262d;
+  --color-dark-accent-foreground: #58a6ff;
+  --color-dark-destructive: #f85149;
+  --color-dark-destructive-foreground: #c9d1d9;
+  --color-dark-border: #30363d;
+  --color-dark-input: #30363d;
+  --color-dark-ring: #58a6ff;
+}
+
+/* Aplicar variables del tema oscuro cuando la clase 'dark' está presente */
+:root.dark {
+  --color-background: var(--color-dark-background);
+  --color-foreground: var(--color-dark-foreground);
+  --color-card: var(--color-dark-card);
+  --color-card-foreground: var(--color-dark-card-foreground);
+  --color-popover: var(--color-dark-popover);
+  --color-popover-foreground: var(--color-dark-popover-foreground);
+  --color-primary: var(--color-dark-primary);
+  --color-primary-foreground: var(--color-dark-primary-foreground);
+  --color-secondary: var(--color-dark-secondary);
+  --color-secondary-foreground: var(--color-dark-secondary-foreground);
+  --color-muted: var(--color-dark-muted);
+  --color-muted-foreground: var(--color-dark-muted-foreground);
+  --color-accent: var(--color-dark-accent);
+  --color-accent-foreground: var(--color-dark-accent-foreground);
+  --color-destructive: var(--color-dark-destructive);
+  --color-destructive-foreground: var(--color-dark-destructive-foreground);
+  --color-border: var(--color-dark-border);
+  --color-input: var(--color-dark-input);
+  --color-ring: var(--color-dark-ring);
+}
