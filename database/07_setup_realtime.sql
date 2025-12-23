@@ -118,6 +118,7 @@ DO $$
 DECLARE
     realtime_count INTEGER;
     expected_count INTEGER := 13; -- Número de tablas esperadas
+    tbl RECORD; -- Declarar como RECORD para el loop
 BEGIN
     RAISE NOTICE '';
     RAISE NOTICE '==========================================';
