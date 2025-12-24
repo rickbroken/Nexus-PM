@@ -317,11 +317,20 @@ CREATE POLICY "Authenticated users can create comments"
     ON public.task_comments FOR INSERT
     WITH CHECK (auth.role() = 'authenticated');
 
--- Usuarios pueden actualizar sus propios comentarios
+-- Usuarios pueden actualizar el contenido de sus propios comentarios
 DROP POLICY IF EXISTS "Users can update own comments" ON public.task_comments;
-CREATE POLICY "Users can update own comments"
+DROP POLICY IF EXISTS "Users can update own comment content" ON public.task_comments;
+CREATE POLICY "Users can update own comment content"
     ON public.task_comments FOR UPDATE
-    USING (user_id = auth.uid());
+    USING (user_id = auth.uid())
+    WITH CHECK (user_id = auth.uid());
+
+-- Usuarios autenticados pueden marcar comentarios como leídos (actualizar read_by)
+DROP POLICY IF EXISTS "Users can mark comments as read" ON public.task_comments;
+CREATE POLICY "Users can mark comments as read"
+    ON public.task_comments FOR UPDATE
+    USING (auth.role() = 'authenticated')
+    WITH CHECK (auth.role() = 'authenticated');
 
 -- Usuarios pueden eliminar sus propios comentarios
 DROP POLICY IF EXISTS "Users can delete own comments" ON public.task_comments;
