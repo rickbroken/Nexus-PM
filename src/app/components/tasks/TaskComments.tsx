@@ -167,16 +167,8 @@ export function TaskComments({ taskId, taskAssignedTo, taskCreatedBy }: TaskComm
     // Solo mostrar chulitos para comentarios del usuario actual
     if (comment.user_id !== user.id) return null;
 
-    // Verificar si alguien más ha leído el comentario (según el rol del usuario autor)
-    let hasBeenRead = false;
-    
-    if (user.role === 'pm') {
-      // Si soy PM, verificar si el Dev lo leyó
-      hasBeenRead = comment.read_by_dev;
-    } else if (user.role === 'dev') {
-      // Si soy Dev, verificar si el PM lo leyó
-      hasBeenRead = comment.read_by_pm;
-    }
+// Chulitos de lectura - Mostrar si alguien más lo leyó
+  const hasBeenRead = comment.read_by && comment.read_by.length > 0;
 
     return (
       <>
