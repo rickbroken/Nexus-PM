@@ -1,10 +1,10 @@
 import { Context } from "npm:hono";
-import { supabaseAdmin, verifyUser, getUserProfile } from "./auth.tsx";
-import * as kv from "./kv_store.tsx";
+import { supabaseAdmin, verifyUser, getUserProfile } from "./auth.ts";
+import * as kv from "./kv_store.ts";
 
 /**
  * Obtener resumen financiero general
- * GET /make-server-17d656ff/finance/summary
+ * GET /finance/summary
  */
 export async function getFinancialSummary(c: Context) {
   try {
@@ -105,7 +105,7 @@ export async function getFinancialSummary(c: Context) {
 
 /**
  * Obtener finanzas de un proyecto específico
- * GET /make-server-17d656ff/finance/project/:projectId
+ * GET /finance/project/:projectId
  */
 export async function getProjectFinances(c: Context) {
   try {
@@ -191,7 +191,7 @@ export async function getProjectFinances(c: Context) {
 
 /**
  * Marcar pago de cobro recurrente
- * POST /make-server-17d656ff/finance/recurring/:id/pay
+ * POST /finance/recurring/:id/pay
  */
 export async function markRecurringChargePaid(c: Context) {
   try {
@@ -275,7 +275,7 @@ export async function markRecurringChargePaid(c: Context) {
 
 /**
  * Obtener cobros recurrentes próximos a vencer
- * GET /make-server-17d656ff/finance/recurring/upcoming
+ * GET /finance/recurring/upcoming
  */
 export async function getUpcomingRecurringCharges(c: Context) {
   try {
@@ -323,7 +323,7 @@ export async function getUpcomingRecurringCharges(c: Context) {
 
 /**
  * Obtener reportes financieros
- * GET /make-server-17d656ff/finance/reports
+ * GET /finance/reports
  */
 export async function getFinancialReports(c: Context) {
   try {
@@ -426,7 +426,7 @@ export async function getFinancialReports(c: Context) {
 
 /**
  * Obtener todos los métodos de pago
- * GET /make-server-17d656ff/finance/payment-methods
+ * GET /finance/payment-methods
  */
 export async function getPaymentMethods(c: Context) {
   try {
@@ -466,7 +466,7 @@ export async function getPaymentMethods(c: Context) {
 
 /**
  * Crear un nuevo método de pago
- * POST /make-server-17d656ff/finance/payment-methods
+ * POST /finance/payment-methods
  */
 export async function createPaymentMethod(c: Context) {
   try {
@@ -514,7 +514,7 @@ export async function createPaymentMethod(c: Context) {
 
 /**
  * Actualizar un método de pago
- * PUT /make-server-17d656ff/finance/payment-methods/:id
+ * PUT /finance/payment-methods/:id
  */
 export async function updatePaymentMethod(c: Context) {
   try {
@@ -563,7 +563,7 @@ export async function updatePaymentMethod(c: Context) {
 
 /**
  * Eliminar un método de pago
- * DELETE /make-server-17d656ff/finance/payment-methods/:id
+ * DELETE /finance/payment-methods/:id
  */
 export async function deletePaymentMethod(c: Context) {
   try {

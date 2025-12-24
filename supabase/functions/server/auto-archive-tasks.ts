@@ -3,7 +3,7 @@
  * Esta función debe ser llamada periódicamente (ej: cada hora)
  */
 
-import { supabaseAdmin } from './auth.tsx';
+import { supabaseAdmin } from './auth.ts';
 
 export async function autoArchiveTasks() {
   try {

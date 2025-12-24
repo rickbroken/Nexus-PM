@@ -1,7 +1,7 @@
 import { Hono } from "npm:hono";
 import { cors } from "npm:hono/cors";
 import { logger } from "npm:hono/logger";
-import * as kv from "./kv_store.tsx";
+import * as kv from "./kv_store.ts";
 import {
   getFinancialSummary,
   getProjectFinances,
@@ -12,9 +12,9 @@ import {
   createPaymentMethod,
   updatePaymentMethod,
   deletePaymentMethod,
-} from "./finance.tsx";
+} from "./finance.ts";
 import { autoArchiveTasks } from "./auto-archive-tasks.ts";
-import { createUser } from "./users.tsx";
+import { createUser } from "./users.ts";
 
 const app = new Hono();
 
@@ -34,26 +34,26 @@ app.use(
 );
 
 // Health check endpoint
-app.get("/make-server-17d656ff/health", (c) => {
+app.get("/server/health", (c) => {
   return c.json({ status: "ok" });
 });
 
 // ===== USER ROUTES =====
-app.post("/make-server-17d656ff/users/create", createUser);
+app.post("/server/users/create", createUser);
 
 // ===== FINANCE ROUTES =====
-app.get("/make-server-17d656ff/finance/summary", getFinancialSummary);
-app.get("/make-server-17d656ff/finance/project/:projectId", getProjectFinances);
-app.post("/make-server-17d656ff/finance/recurring/:id/pay", markRecurringChargePaid);
-app.get("/make-server-17d656ff/finance/recurring/upcoming", getUpcomingRecurringCharges);
-app.get("/make-server-17d656ff/finance/reports", getFinancialReports);
-app.get("/make-server-17d656ff/finance/payment-methods", getPaymentMethods);
-app.post("/make-server-17d656ff/finance/payment-methods", createPaymentMethod);
-app.put("/make-server-17d656ff/finance/payment-methods/:id", updatePaymentMethod);
-app.delete("/make-server-17d656ff/finance/payment-methods/:id", deletePaymentMethod);
+app.get("/server/finance/summary", getFinancialSummary);
+app.get("/server/finance/project/:projectId", getProjectFinances);
+app.post("/server/finance/recurring/:id/pay", markRecurringChargePaid);
+app.get("/server/finance/recurring/upcoming", getUpcomingRecurringCharges);
+app.get("/server/finance/reports", getFinancialReports);
+app.get("/server/finance/payment-methods", getPaymentMethods);
+app.post("/server/finance/payment-methods", createPaymentMethod);
+app.put("/server/finance/payment-methods/:id", updatePaymentMethod);
+app.delete("/server/finance/payment-methods/:id", deletePaymentMethod);
 
 // ===== KV STORE ROUTES =====
-app.get("/make-server-17d656ff/kv/:key", async (c) => {
+app.get("/server/kv/:key", async (c) => {
   const key = c.req.param("key");
   const value = await kv.get(key);
   
@@ -64,7 +64,7 @@ app.get("/make-server-17d656ff/kv/:key", async (c) => {
   return c.json({ key, value });
 });
 
-app.put("/make-server-17d656ff/kv/:key", async (c) => {
+app.put("/server/kv/:key", async (c) => {
   const key = c.req.param("key");
   const body = await c.req.json();
   
@@ -74,7 +74,7 @@ app.put("/make-server-17d656ff/kv/:key", async (c) => {
 });
 
 // ===== TASKS AUTO-ARCHIVE ROUTE =====
-app.post("/make-server-17d656ff/tasks/auto-archive", async (c) => {
+app.post("/server/tasks/auto-archive", async (c) => {
   const result = await autoArchiveTasks();
   return c.json(result);
 });

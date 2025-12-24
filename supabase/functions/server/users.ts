@@ -33,7 +33,7 @@ interface CreateUserRequest {
 
 /**
  * Create a new user with email already confirmed
- * POST /make-server-17d656ff/users/create
+ * POST /users/create
  */
 export const createUser = async (c: Context) => {
   try {
@@ -45,19 +45,22 @@ export const createUser = async (c: Context) => {
 
     const token = authHeader.replace("Bearer ", "");
     
-    // Use admin client for all operations to bypass RLS
-    const adminClient = getAdminClient();
+    // Use REGULAR client to verify user JWT (not admin client!)
+    const regularClient = getClient();
     
     // Verify the token and get the user
-    const { data: { user: requestingUser }, error: authError } = await adminClient.auth.getUser(token);
+    const { data: { user: requestingUser }, error: authError } = await regularClient.auth.getUser(token);
     
     if (authError || !requestingUser) {
       console.error("Auth error:", authError);
-      return c.json({ error: "Unauthorized" }, 401);
+      return c.json({ error: "Invalid JWT", details: authError?.message }, 401);
     }
 
-    console.log(`🔍 Checking if user ${requestingUser.id} is admin...`);
+    console.log(`🔍 Checking if user ${requestingUser.id} (${requestingUser.email}) is admin...`);
 
+    // Use admin client for database operations to bypass RLS
+    const adminClient = getAdminClient();
+    
     // Check if requesting user is admin (using admin client to bypass RLS)
     const { data: profile, error: profileError } = await adminClient
       .from("users_profiles")
@@ -83,7 +86,6 @@ export const createUser = async (c: Context) => {
     }
 
     // Create user with admin client (auto-confirms email)
-    
     const { data: authData, error: createError } = await adminClient.auth.admin.createUser({
       email: body.email,
       password: body.password,
@@ -111,27 +113,69 @@ export const createUser = async (c: Context) => {
       return c.json({ error: "User creation failed" }, 500);
     }
 
-    // Create user profile
-    const { data: profileData, error: profileInsertError } = await adminClient
+    // Check if profile already exists (could be created by a trigger)
+    const { data: existingProfile } = await adminClient
       .from("users_profiles")
-      .insert([{
-        id: authData.user.id,
-        email: body.email,
-        full_name: body.full_name,
-        role: body.role,
-        avatar_url: body.avatar_url || null,
-        is_active: true,
-      }])
-      .select()
+      .select("id")
+      .eq("id", authData.user.id)
       .single();
 
-    if (profileInsertError) {
-      console.error("Error creating user profile:", profileInsertError);
+    let profileData;
+    
+    if (existingProfile) {
+      // Profile exists, update it
+      console.log(`🔄 Profile already exists for ${authData.user.id}, updating...`);
       
-      // Rollback: delete the auth user
-      await adminClient.auth.admin.deleteUser(authData.user.id);
+      const { data: updatedProfile, error: profileUpdateError } = await adminClient
+        .from("users_profiles")
+        .update({
+          email: body.email,
+          full_name: body.full_name,
+          role: body.role,
+          avatar_url: body.avatar_url || null,
+          is_active: true,
+        })
+        .eq("id", authData.user.id)
+        .select()
+        .single();
+
+      if (profileUpdateError) {
+        console.error("Error updating user profile:", profileUpdateError);
+        
+        // Rollback: delete the auth user
+        await adminClient.auth.admin.deleteUser(authData.user.id);
+        
+        return c.json({ error: "Failed to update user profile" }, 500);
+      }
       
-      return c.json({ error: "Failed to create user profile" }, 500);
+      profileData = updatedProfile;
+    } else {
+      // Profile doesn't exist, create it
+      console.log(`➕ Creating new profile for ${authData.user.id}...`);
+      
+      const { data: newProfile, error: profileInsertError } = await adminClient
+        .from("users_profiles")
+        .insert([{
+          id: authData.user.id,
+          email: body.email,
+          full_name: body.full_name,
+          role: body.role,
+          avatar_url: body.avatar_url || null,
+          is_active: true,
+        }])
+        .select()
+        .single();
+
+      if (profileInsertError) {
+        console.error("Error creating user profile:", profileInsertError);
+        
+        // Rollback: delete the auth user
+        await adminClient.auth.admin.deleteUser(authData.user.id);
+        
+        return c.json({ error: "Failed to create user profile" }, 500);
+      }
+      
+      profileData = newProfile;
     }
 
     console.log(`✅ User created successfully: ${body.email} (${body.role})`);

@@ -249,7 +249,7 @@ supabase login
 supabase link --project-ref tu-project-ref
 
 # Desplegar la función
-supabase functions deploy make-server-17d656ff
+supabase functions deploy server
 ```
 
 ### 4. Desarrollo Local
@@ -406,7 +406,7 @@ Actualizaciones automáticas sin recargar la página para:
 Los Edge Functions de Supabase loguean a la consola. Ver logs:
 
 ```bash
-supabase functions logs make-server-17d656ff
+supabase functions logs server
 ```
 
 ### Problemas Comunes
