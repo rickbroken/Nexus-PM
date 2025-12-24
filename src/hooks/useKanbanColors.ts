@@ -38,7 +38,7 @@ export function useKanbanColors() {
     queryKey: ['kanban-colors'],
     queryFn: async () => {
       const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-17d656ff/kv/${KV_KEY}`,
+        `https://${projectId}.supabase.co/functions/v1/server/kv/${KV_KEY}`,
         {
           headers: {
             Authorization: `Bearer ${publicAnonKey}`,
@@ -70,7 +70,7 @@ export function useKanbanColors() {
   const updateColors = useMutation({
     mutationFn: async (newColors: KanbanColors) => {
       const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-17d656ff/kv/${KV_KEY}`,
+        `https://${projectId}.supabase.co/functions/v1/server/kv/${KV_KEY}`,
         {
           method: 'PUT',
           headers: {

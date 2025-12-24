@@ -7,7 +7,7 @@ import { useAuthStore } from '../stores/authStore';
 const projectId = import.meta.env.VITE_SUPABASE_PROYECT_ID;
 const publicAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-const SERVER_URL = `https://${projectId}.supabase.co/functions/v1/make-server-17d656ff`;
+const SERVER_URL = `https://${projectId}.supabase.co/functions/v1/server`;
 
 // Helper function to get auth headers
 const getAuthHeaders = async () => {

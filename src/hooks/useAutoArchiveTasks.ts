@@ -12,7 +12,7 @@ export function useAutoArchiveTasks() {
     const runAutoArchive = async () => {
       try {
         const response = await fetch(
-          `https://${VITE_SUPABASE_PROYECT_ID}.supabase.co/functions/v1/make-server-17d656ff/tasks/auto-archive`,
+          `https://${VITE_SUPABASE_PROYECT_ID}.supabase.co/functions/v1/server/tasks/auto-archive`,
           {
             method: 'POST',
             headers: {

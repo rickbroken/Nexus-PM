@@ -64,7 +64,7 @@ export function useCreateUser() {
 
       // Call backend endpoint to create user with email confirmed
       const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-17d656ff/users/create`,
+        `https://${projectId}.supabase.co/functions/v1/server/users/create`,
         {
           method: 'POST',
           headers: {
