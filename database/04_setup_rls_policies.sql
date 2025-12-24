@@ -258,14 +258,17 @@ CREATE POLICY "Authenticated users can view tasks"
     ON public.tasks FOR SELECT
     USING (auth.role() = 'authenticated');
 
--- PMs pueden crear tareas
+-- DEVs, PMs y Admins pueden crear tareas
 DROP POLICY IF EXISTS "PMs can create tasks" ON public.tasks;
-CREATE POLICY "PMs can create tasks"
+DROP POLICY IF EXISTS "DEVs, PMs and Admins can create tasks" ON public.tasks;
+CREATE POLICY "DEVs, PMs and Admins can create tasks"
     ON public.tasks FOR INSERT
     WITH CHECK (
         EXISTS (
             SELECT 1 FROM public.users_profiles
-            WHERE id = auth.uid() AND role IN ('admin', 'pm')
+            WHERE id = auth.uid() 
+            AND role IN ('admin', 'pm', 'dev')
+            AND is_active = true
         )
     );
 
