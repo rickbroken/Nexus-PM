@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, type FormEvent } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   useTaskComments,
@@ -65,12 +65,7 @@ export function TaskComments({ taskId, taskAssignedTo, taskCreatedBy }: TaskComm
       comment => {
         const isNotMine = comment.user_id !== user.id;
         // Verificar si el comentario ya fue leído por el usuario según su rol
-        let notRead = false;
-        if (user.role === 'pm') {
-          notRead = !comment.read_by_pm;
-        } else if (user.role === 'dev') {
-          notRead = !comment.read_by_dev;
-        }
+        const notRead = !comment.read_by?.includes(user.id);
         const notYetMarked = !markedAsReadRef.current.has(comment.id);
         return isNotMine && notRead && notYetMarked;
       }
@@ -95,7 +90,7 @@ export function TaskComments({ taskId, taskAssignedTo, taskCreatedBy }: TaskComm
     markedAsReadRef.current.clear();
   }, [taskId]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!user || !newComment.trim()) return;
 

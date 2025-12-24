@@ -14,6 +14,7 @@ export interface TaskComment {
   deleted_at: string | null;
   read_by_pm: boolean;
   read_by_dev: boolean;
+  read_by?: string[]; // Array de roles que han leído el comentario
   read_by_pm_at: string | null;
   read_by_dev_at: string | null;
   author: {
