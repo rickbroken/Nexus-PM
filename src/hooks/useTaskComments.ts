@@ -12,11 +12,7 @@ export interface TaskComment {
   updated_at: string;
   is_edited: boolean;
   deleted_at: string | null;
-  read_by_pm: boolean;
-  read_by_dev: boolean;
-  read_by?: string[]; // Array de roles que han leído el comentario
-  read_by_pm_at: string | null;
-  read_by_dev_at: string | null;
+  read_by?: string[]; // Array de user_ids que han leído el comentario
   author: {
     id: string;
     full_name: string;
@@ -34,7 +30,7 @@ export function useUnreadCommentsCount(taskId: string | undefined, userId: strin
       try {
         const { data, error } = await supabase
           .from('task_comments')
-          .select('id, read_by_pm, read_by_dev, user_id')
+          .select('id, read_by, user_id')
           .eq('task_id', taskId)
           .neq('user_id', userId); // No contar comentarios propios
 
@@ -43,14 +39,9 @@ export function useUnreadCommentsCount(taskId: string | undefined, userId: strin
           return 0;
         }
 
-        // Contar comentarios que no han sido leídos por el usuario según su rol
+        // Contar comentarios que no han sido leídos por el usuario
         const unreadCount = (data || []).filter(comment => {
-          if (userRole === 'pm') {
-            return !comment.read_by_pm;
-          } else if (userRole === 'dev') {
-            return !comment.read_by_dev;
-          }
-          return false;
+          return !comment.read_by?.includes(userId);
         }).length;
 
         return unreadCount;
@@ -111,8 +102,7 @@ export function useTaskComments(taskId: string | undefined) {
             const { data: dataWithoutDeleted, error: error2 } = await supabase
               .from('task_comments')
               .select(`
-                id, task_id, user_id, content, created_at, updated_at, is_edited,
-                read_by_pm, read_by_dev, read_by_pm_at, read_by_dev_at,
+                id, task_id, user_id, content, created_at, updated_at, is_edited, read_by,
                 author:users_profiles!task_comments_user_id_fkey (
                   id,
                   full_name,
@@ -121,18 +111,18 @@ export function useTaskComments(taskId: string | undefined) {
               `)
               .eq('task_id', taskId)
               .order('created_at', { ascending: true });
-            
+
             if (error2) {
               console.error('Error obteniendo comentarios:', error2);
               return [];
             }
-            
+
             // Agregar deleted_at: null a todos los comentarios
             const commentsWithDeletedAt = (dataWithoutDeleted || []).map(comment => ({
               ...comment,
               deleted_at: null
             }));
-            
+
             // Filtrar comentarios sin author
             const validComments = commentsWithDeletedAt.filter(comment => {
               if (!comment.author) {
@@ -141,13 +131,13 @@ export function useTaskComments(taskId: string | undefined) {
               }
               return true;
             });
-            
+
             return validComments as TaskComment[];
           }
           console.error('Error obteniendo comentarios:', error);
           return [];
         }
-        
+
         // Filtrar comentarios que no tienen author (usuario eliminado o JOIN fallido)
         const validComments = (data || []).filter(comment => {
           if (!comment.author) {
@@ -156,13 +146,13 @@ export function useTaskComments(taskId: string | undefined) {
           }
           return true;
         });
-        
+
         // Asegurar que deleted_at existe en cada comentario
         const commentsWithDefaults = validComments.map(comment => ({
           ...comment,
           deleted_at: comment.deleted_at || null
         }));
-        
+
         return commentsWithDefaults as TaskComment[];
       } catch (error) {
         console.error('Error obteniendo comentarios:', error);
@@ -230,20 +220,12 @@ export function useCreateComment() {
       }
 
       try {
-        // Auto-marcar como visto por quien lo crea
         const insertData: any = {
           task_id: taskId,
           user_id: userId,
           content: content.trim(),
-          read_by_pm: userRole === 'pm',
-          read_by_dev: userRole === 'dev',
+          read_by: [userId], // Inicializar array con el ID del creador
         };
-
-        if (userRole === 'pm') {
-          insertData.read_by_pm_at = new Date().toISOString();
-        } else if (userRole === 'dev') {
-          insertData.read_by_dev_at = new Date().toISOString();
-        }
 
         const { data, error } = await supabase
           .from('task_comments')
@@ -390,7 +372,7 @@ export function useDeleteComment() {
               .select('user_id, created_at')
               .eq('id', commentId)
               .single();
-            
+
             if (error2) throw error2;
 
             if (commentWithoutDeleted.user_id !== userId) {
@@ -417,7 +399,7 @@ export function useDeleteComment() {
             console.warn('⚠️  Para activar soft delete, ejecuta:');
             console.warn('⚠️  Ver archivo: /EJECUTAR_ESTO_AHORA.md');
             console.warn('⚠️ ========================================');
-            
+
             const { error: deleteError } = await supabase
               .from('task_comments')
               .delete()
@@ -480,33 +462,40 @@ export function useMarkCommentsAsRead() {
     mutationFn: async ({
       commentIds,
       taskId,
-      userRole,
+      userId,
     }: {
       commentIds: string[];
       taskId: string;
-      userRole: string;
+      userId: string;
     }) => {
-      if (commentIds.length === 0 || !['pm', 'dev'].includes(userRole)) return;
+      if (commentIds.length === 0) return;
 
-      const updates: any = {};
-      
-      if (userRole === 'pm') {
-        updates.read_by_pm = true;
-        updates.read_by_pm_at = new Date().toISOString();
-      } else if (userRole === 'dev') {
-        updates.read_by_dev = true;
-        updates.read_by_dev_at = new Date().toISOString();
-      }
+      // Para cada comentario, agregar el userId al array read_by si no está
+      const promises = commentIds.map(async (commentId) => {
+        // Obtener el array actual
+        const { data: comment, error: fetchError } = await supabase
+          .from('task_comments')
+          .select('read_by')
+          .eq('id', commentId)
+          .single();
 
-      // Actualizar todos los comentarios en una sola operación
-      const { error } = await supabase
-        .from('task_comments')
-        .update(updates)
-        .in('id', commentIds);
+        if (fetchError) throw fetchError;
 
-      if (error) throw error;
+        // Agregar userId si no está en el array
+        const currentReadBy = comment?.read_by || [];
+        if (!currentReadBy.includes(userId)) {
+          const { error: updateError } = await supabase
+            .from('task_comments')
+            .update({ read_by: [...currentReadBy, userId] })
+            .eq('id', commentId);
 
-      return { taskId, userRole, commentIds };
+          if (updateError) throw updateError;
+        }
+      });
+
+      await Promise.all(promises);
+
+      return { taskId, commentIds };
     },
     onSuccess: (data) => {
       if (data) {

@@ -64,7 +64,7 @@ export function TaskComments({ taskId, taskAssignedTo, taskCreatedBy }: TaskComm
     const unreadComments = comments.filter(
       comment => {
         const isNotMine = comment.user_id !== user.id;
-        // Verificar si el comentario ya fue leído por el usuario según su rol
+        // Verificar si el comentario ya fue leído por el usuario
         const notRead = !comment.read_by?.includes(user.id);
         const notYetMarked = !markedAsReadRef.current.has(comment.id);
         return isNotMine && notRead && notYetMarked;
@@ -80,10 +80,10 @@ export function TaskComments({ taskId, taskAssignedTo, taskCreatedBy }: TaskComm
       markAsRead.mutate({
         commentIds: unreadIds,
         taskId,
-        userRole: user.role,
+        userId: user.id,
       });
     }
-  }, [comments, user?.id, user?.role, taskId, markAsRead]);
+  }, [comments, user?.id, taskId, markAsRead]);
 
   // Limpiar el ref cuando se cierra el modal (cuando taskId cambia)
   useEffect(() => {
@@ -167,8 +167,10 @@ export function TaskComments({ taskId, taskAssignedTo, taskCreatedBy }: TaskComm
     // Solo mostrar chulitos para comentarios del usuario actual
     if (comment.user_id !== user.id) return null;
 
-// Chulitos de lectura - Mostrar si alguien más lo leyó
-  const hasBeenRead = comment.read_by && comment.read_by.length > 0;
+    // Verificar si alguien más ha leído el comentario
+    // Filtrar el array para excluir al propio autor
+    const othersWhoRead = comment.read_by?.filter(id => id !== user.id) || [];
+    const hasBeenRead = othersWhoRead.length > 0;
 
     return (
       <>
