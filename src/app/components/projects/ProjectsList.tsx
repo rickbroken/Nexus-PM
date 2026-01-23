@@ -134,7 +134,11 @@ export function ProjectsList({ onCreateClick, onEditClick }: ProjectsListProps) 
     });
 
     if (result.isConfirmed) {
-      deleteProject.mutate(project.id);
+      try {
+        await deleteProject.mutateAsync(project.id);
+      } catch (error) {
+        // El error ya se maneja en el hook, evitamos unhandled rejection.
+      }
     }
   };
 
@@ -436,15 +440,25 @@ export function ProjectsList({ onCreateClick, onEditClick }: ProjectsListProps) 
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => onEditClick(project)}
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onEditClick(project);
+                          }}
+                          disabled={deleteProject.isPending}
                         >
                           <Edit className="h-4 w-4" />
                         </Button>
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => handleDelete(project)}
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            handleDelete(project);
+                          }}
                           className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          disabled={deleteProject.isPending}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
