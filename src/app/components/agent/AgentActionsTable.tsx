@@ -7,6 +7,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/app/components/ui/table';
+import { formatAgentActionStatus, formatAgentActionType } from '@/lib/agentActionLabels';
 import type { AgentAction } from '@/lib/supabase';
 
 interface AgentActionsTableProps {
@@ -64,10 +65,12 @@ export function AgentActionsTable({ actions, isLoading }: AgentActionsTableProps
         {actions.map((action) => (
           <TableRow key={action.id}>
             <TableCell>{formatDate(action.created_at)}</TableCell>
-            <TableCell className="font-medium">{action.action_type}</TableCell>
+            <TableCell className="font-medium">{formatAgentActionType(action.action_type)}</TableCell>
             <TableCell>{getEntityLabel(action)}</TableCell>
             <TableCell>
-              <Badge variant={getStatusVariant(action.status)}>{action.status}</Badge>
+              <Badge variant={getStatusVariant(action.status)}>
+                {formatAgentActionStatus(action.status)}
+              </Badge>
             </TableCell>
             <TableCell>{action.user?.full_name || 'Sistema'}</TableCell>
             <TableCell className="max-w-[280px] whitespace-normal text-xs text-zinc-600">

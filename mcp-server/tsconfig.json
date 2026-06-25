@@ -1,0 +1,23 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "lib": ["ES2022"],
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "declaration": false,
+    "outDir": "dist",
+    "rootDir": ".."
+  },
+  "include": [
+    "src/**/*.ts",
+    "../src/lib/agent-api/**/*.ts",
+    "../src/lib/agent-mcp/**/*.ts",
+    "../src/app/utils/dateHelpers.ts",
+    "../src/lib/supabase.ts",
+    "../src/vite-env.d.ts"
+  ]
+}

@@ -29,7 +29,7 @@ export function Sidebar() {
       name: 'Mis Tareas',
       href: '/tasks',
       icon: CheckSquare,
-      roles: ['pm', 'dev'],
+      roles: ['admin', 'pm', 'dev'],
     },
     {
       name: 'Finanzas',
@@ -47,7 +47,7 @@ export function Sidebar() {
       name: 'Clientes',
       href: '/clients',
       icon: Building2,
-      roles: ['pm'],
+      roles: ['admin', 'pm'],
     },
     {
       name: 'Proyectos',

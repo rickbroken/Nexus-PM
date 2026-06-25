@@ -15,6 +15,7 @@ import { UsersPage } from './components/users/UsersPage';
 import { FinancesPage } from './components/finances/FinancesPage';
 import { NotificationsPanel } from './components/notifications/NotificationsPanel';
 import { AgentCenter } from './components/agent/AgentCenter';
+import { ReportsPage } from './components/reports/ReportsPage';
 import { useAutoArchiveTasks } from '../hooks/useAutoArchiveTasks';
 import 'sweetalert2/dist/sweetalert2.min.css';
 import { queryClient } from '../lib/queryClient';
@@ -47,6 +48,14 @@ function App() {
                 <Route path="my-tasks" element={<TasksPage />} />
                 <Route path="my-tasks/:taskId" element={<TasksPage />} />
                 <Route path="finances" element={<FinancesPage />} />
+                <Route
+                  path="reports"
+                  element={
+                    <ProtectedRoute allowedRoles={['admin', 'advisor']}>
+                      <ReportsPage />
+                    </ProtectedRoute>
+                  }
+                />
                 <Route path="users" element={<UsersPage />} />
                 <Route path="notifications" element={<NotificationsPanel />} />
                 <Route
