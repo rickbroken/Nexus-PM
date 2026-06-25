@@ -1,6 +1,7 @@
 import { AlertTriangle, Bot, Clock3, ListChecks } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/app/components/ui/card';
 import { AgentActionsTable } from './AgentActionsTable';
+import { AgentOperationalBrief } from './AgentOperationalBrief';
 import { AgentRemindersPanel } from './AgentRemindersPanel';
 import { useAgentActions, useRecentAgentActions } from '@/hooks/useAgentActions';
 import { usePendingReminders, useReminders } from '@/hooks/useReminders';
@@ -72,6 +73,8 @@ export function AgentCenter() {
           </CardContent>
         </Card>
       </div>
+
+      <AgentOperationalBrief />
 
       <Card>
         <CardHeader>
