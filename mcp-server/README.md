@@ -50,3 +50,22 @@ Ejecucion del build:
 cd mcp-server
 pnpm start
 ```
+
+## Prueba local real
+
+Prerequisito: `mcp-server/.env` debe existir y contener valores reales locales.
+
+```bash
+pnpm build
+cd mcp-server
+pnpm build
+pnpm smoke
+```
+
+Resultado esperado:
+
+- respuesta correcta de `nexus_get_daily_brief`
+- respuesta correcta de `nexus_get_pending_tasks`
+- creacion real de `nexus_create_reminder`
+- registros visibles en `agent_actions` con `action_type` `nexus_*`
+- reminder visible en `reminders` para el `NEXUS_MCP_ALLOWED_USER_ID`

@@ -1,14 +1,58 @@
-import { cancelReminder, completeReminder, createReminder, createTask, getDailyBrief, getPendingTasks, postponeReminder, updateTaskStatus, } from '../agent-api/index.js';
+import { cancelReminder, completeReminder, createReminder, createTask, getDailyBrief, getPendingTasks, logAgentAction, postponeReminder, tryLogAgentFailure, updateTaskStatus, } from '../agent-api/index.js';
 import { cancelReminderToolSchema, completeReminderToolSchema, createReminderToolSchema, createTaskToolSchema, getDailyBriefSchema, getPendingTasksSchema, postponeReminderToolSchema, updateTaskStatusToolSchema, } from './mcpToolSchemas.js';
 export async function handleGetDailyBriefTool({ context, input }) {
     getDailyBriefSchema.parse(input ?? {});
-    return getDailyBrief(context);
+    try {
+        const result = await getDailyBrief(context);
+        await logAgentAction(context, {
+            action_type: 'nexus_get_daily_brief',
+            entity_type: 'brief',
+            input_text: 'mcp:nexus_get_daily_brief',
+            result: {
+                pending_tasks: result.stats.pendingTasks,
+                pending_reminders: result.stats.pendingReminders,
+                pending_payments: result.stats.pendingPayments,
+            },
+            status: 'success',
+        });
+        return result;
+    }
+    catch (error) {
+        await tryLogAgentFailure(context, {
+            action_type: 'nexus_get_daily_brief',
+            entity_type: 'brief',
+            input_text: 'mcp:nexus_get_daily_brief',
+            error_message: error instanceof Error ? error.message : 'Error desconocido',
+        });
+        throw error;
+    }
 }
 export async function handleGetPendingTasksTool({ context, input }) {
     const parsed = getPendingTasksSchema.parse(input ?? {});
-    return getPendingTasks(context, {
-        limit: parsed.limit,
-    });
+    try {
+        const result = await getPendingTasks(context, {
+            limit: parsed.limit,
+        });
+        await logAgentAction(context, {
+            action_type: 'nexus_get_pending_tasks',
+            entity_type: 'task',
+            input_text: 'mcp:nexus_get_pending_tasks',
+            result: {
+                count: result.length,
+            },
+            status: 'success',
+        });
+        return result;
+    }
+    catch (error) {
+        await tryLogAgentFailure(context, {
+            action_type: 'nexus_get_pending_tasks',
+            entity_type: 'task',
+            input_text: 'mcp:nexus_get_pending_tasks',
+            error_message: error instanceof Error ? error.message : 'Error desconocido',
+        });
+        throw error;
+    }
 }
 export async function handleCreateReminderTool({ context, input }) {
     const parsed = createReminderToolSchema.parse(input);

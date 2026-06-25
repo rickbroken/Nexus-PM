@@ -83,7 +83,7 @@ export function AgentCenter() {
         <CardHeader>
           <CardTitle>Resumen de acciones recientes</CardTitle>
           <CardDescription>
-            Registro interno para auditoria futura de herramientas MCP como `nexus_create_task` y `nexus_create_reminder`.
+            Registro interno de acciones ejecutadas por el agente y herramientas MCP.
           </CardDescription>
         </CardHeader>
         <CardContent>
