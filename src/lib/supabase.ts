@@ -19,7 +19,13 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 
 // Database types
 export type UserRole = 'admin' | 'pm' | 'dev' | 'advisor';
-export type ProjectStatus = 'planning' | 'in_development' | 'active' | 'paused' | 'completed' | 'cancelled';
+export type ProjectStatus =
+  | 'planning'
+  | 'in_development'
+  | 'active'
+  | 'paused'
+  | 'completed'
+  | 'cancelled';
 export type TaskStatus = 'todo' | 'in_progress' | 'review' | 'done' | 'archived';
 export type TaskPriority = 'low' | 'medium' | 'high' | 'urgent';
 export type ReviewStatus = 'pending' | 'approved' | 'rejected' | null;
@@ -27,7 +33,11 @@ export type PaymentStatus = 'pending' | 'paid' | 'overdue' | 'cancelled';
 export type PaymentType = 'income' | 'expense';
 export type ChargeFrequency = 'monthly' | 'quarterly' | 'annual';
 export type RecurringChargeType = 'income' | 'expense';
-export type NotificationType = 
+export type AgentActionStatus = 'success' | 'failed' | 'pending';
+export type ReminderStatus = 'pending' | 'sent' | 'cancelled' | 'completed';
+export type ReminderSource = 'manual' | 'agent' | 'system';
+export type ReminderPriority = 'low' | 'medium' | 'high' | 'urgent';
+export type NotificationType =
   | 'task_assigned'
   | 'task_ready_review'
   | 'task_approved'
@@ -39,7 +49,23 @@ export type NotificationType =
   | 'project_created'
   | 'project_updated'
   | 'recurring_charge_due_soon'
-  | 'recurring_expense_due_soon';
+  | 'recurring_expense_due_soon'
+  | 'reminder_due'
+  | 'reminder_created'
+  | 'reminder_completed'
+  | 'reminder_cancelled'
+  | 'agent_action_failed';
+export type AgentActionType =
+  | 'create_task'
+  | 'update_task_status'
+  | 'add_task_comment'
+  | 'create_reminder'
+  | 'update_reminder'
+  | 'cancel_reminder'
+  | 'get_project_summary'
+  | 'get_pending_tasks'
+  | 'get_upcoming_payments'
+  | 'get_daily_brief';
 
 export interface UserProfile {
   id: string;
@@ -138,7 +164,7 @@ export interface TaskComment {
   created_at: string;
   updated_at: string;
   is_edited: boolean;
-  read_by: string[]; // Array de user_ids que han leído el comentario
+  read_by: string[];
   author?: {
     id: string;
     full_name: string;
@@ -250,3 +276,55 @@ export interface Notification {
   created_by?: string;
   created_at: string;
 }
+
+export interface AgentAction {
+  id: string;
+  user_id?: string;
+  action_type: AgentActionType | string;
+  entity_type?: string;
+  entity_id?: string;
+  project_id?: string;
+  task_id?: string;
+  client_id?: string;
+  payment_id?: string;
+  recurring_charge_id?: string;
+  input_text?: string;
+  result?: Record<string, unknown>;
+  status: AgentActionStatus;
+  error_message?: string;
+  created_at: string;
+  user?: UserProfile;
+  project?: Project;
+  task?: Task;
+  client?: Client;
+  payment?: Payment;
+  recurring_charge?: RecurringCharge;
+}
+
+export interface Reminder {
+  id: string;
+  user_id?: string;
+  project_id?: string;
+  task_id?: string;
+  title: string;
+  description?: string;
+  remind_at: string;
+  recurrence_rule?: string;
+  priority: ReminderPriority;
+  status: ReminderStatus;
+  source: ReminderSource;
+  notified_at?: string;
+  completed_at?: string;
+  cancelled_at?: string;
+  cancelled_by?: string;
+  metadata?: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+  user?: UserProfile;
+  project?: Project;
+  task?: Task;
+  canceller?: UserProfile;
+}
+
+export type ProjectInsert = Omit<Project, 'id' | 'created_at' | 'updated_at' | 'client'>;
+export type ProjectUpdate = Partial<ProjectInsert> & { id: string };

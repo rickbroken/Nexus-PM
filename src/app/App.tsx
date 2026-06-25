@@ -14,6 +14,7 @@ import { ClientsPage } from './components/clients/ClientsPage';
 import { UsersPage } from './components/users/UsersPage';
 import { FinancesPage } from './components/finances/FinancesPage';
 import { NotificationsPanel } from './components/notifications/NotificationsPanel';
+import { AgentCenter } from './components/agent/AgentCenter';
 import { useAutoArchiveTasks } from '../hooks/useAutoArchiveTasks';
 import 'sweetalert2/dist/sweetalert2.min.css';
 import { queryClient } from '../lib/queryClient';
@@ -48,6 +49,14 @@ function App() {
                 <Route path="finances" element={<FinancesPage />} />
                 <Route path="users" element={<UsersPage />} />
                 <Route path="notifications" element={<NotificationsPanel />} />
+                <Route
+                  path="agent"
+                  element={
+                    <ProtectedRoute allowedRoles={['admin', 'pm', 'dev', 'advisor']}>
+                      <AgentCenter />
+                    </ProtectedRoute>
+                  }
+                />
                 <Route path="settings" element={<SettingsPage />} />
               </Route>
               <Route path="*" element={<div>404 - Página no encontrada</div>} />

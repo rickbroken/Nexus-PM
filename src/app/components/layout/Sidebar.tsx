@@ -2,6 +2,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUIStore } from '@/stores/uiStore';
 import {
+  Bot,
   LayoutDashboard,
   FolderKanban,
   CheckSquare,
@@ -59,6 +60,12 @@ export function Sidebar() {
       href: '/users',
       icon: Users,
       roles: ['admin'],
+    },
+    {
+      name: 'Agent Center',
+      href: '/agent',
+      icon: Bot,
+      roles: ['admin', 'pm', 'dev', 'advisor'],
     },
     {
       name: 'Reportes',
