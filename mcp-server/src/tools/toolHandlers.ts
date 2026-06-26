@@ -152,6 +152,10 @@ export async function handleTaskAttachmentUploadTool({ context, input }: McpTool
   });
 }
 
+export async function handleAttachFileToTaskTool(input: McpToolHandlerInput) {
+  return handleTaskAttachmentUploadTool(input);
+}
+
 export async function handleStorageDeleteTool({ context, input }: McpToolHandlerInput) {
   const parsed = storageDeleteSchema.parse(input);
 
@@ -232,6 +236,7 @@ export const mcpToolHandlers = {
   nexus_storage_list_objects: handleStorageListObjectsTool,
   nexus_storage_upload_text: handleStorageUploadTextTool,
   nexus_task_attachment_upload: handleTaskAttachmentUploadTool,
+  nexus_attach_file_to_task: handleAttachFileToTaskTool,
   nexus_storage_delete: handleStorageDeleteTool,
   nexus_auth_list_users: handleAuthListUsersTool,
   nexus_auth_get_user: handleAuthGetUserTool,

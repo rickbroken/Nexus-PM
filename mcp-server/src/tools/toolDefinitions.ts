@@ -77,7 +77,16 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
   {
     name: 'nexus_task_attachment_upload',
     description:
-      'Adjunta una imagen o archivo a una tarea usando file param de ChatGPT o base64, guardando Storage y metadata en task_attachments.',
+      'Adjunta una imagen o archivo a una tarea usando file param de ChatGPT o base64, guardando Storage y metadata en task_attachments. Usa esta tool siempre que el usuario pida adjuntar archivos o imagenes a una tarea.',
+    inputSchema: z.toJSONSchema(taskAttachmentUploadSchema),
+    meta: {
+      'openai/fileParams': ['file'],
+    },
+  },
+  {
+    name: 'nexus_attach_file_to_task',
+    description:
+      'Tool principal para adjuntar una imagen o archivo a una tarea de Nexus-PM. Usa esta tool en lugar de nexus_db_insert cuando el usuario comparta archivos en ChatGPT.',
     inputSchema: z.toJSONSchema(taskAttachmentUploadSchema),
     meta: {
       'openai/fileParams': ['file'],
