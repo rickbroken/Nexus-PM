@@ -11,6 +11,7 @@ export interface KanbanColors {
   };
   pm: {
     todo: string;
+    in_progress: string;
     review: string;
     done: string;
   };
@@ -24,6 +25,7 @@ const DEFAULT_COLORS: KanbanColors = {
   },
   pm: {
     todo: 'bg-purple-100',
+    in_progress: 'bg-blue-100',
     review: 'bg-yellow-100',
     done: 'bg-green-100',
   },

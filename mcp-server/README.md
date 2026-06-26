@@ -205,3 +205,32 @@ Para conectar desde ChatGPT Apps ya no necesitas `ngrok` si usas el deploy remot
 ```txt
 https://snhjzofsjitlyscyirov.supabase.co/functions/v1/mcp
 ```
+
+### Configuración actual recomendada en ChatGPT
+
+Mientras Supabase siga respondiendo `OAuth server is disabled` en:
+
+```txt
+https://snhjzofsjitlyscyirov.supabase.co/auth/v1/.well-known/oauth-authorization-server
+```
+
+la integración estable en ChatGPT es:
+
+- Conexión: `URL del servidor`
+- URL: `https://snhjzofsjitlyscyirov.supabase.co/functions/v1/mcp`
+- Autenticación: `Token de acceso o clave de API`
+- Esquema de encabezado: `Portador`
+- Token: el valor de `MCP_HTTP_API_KEY`
+
+Estado OAuth publicado hoy:
+
+- `mcp` ya anuncia `WWW-Authenticate` con `resource_metadata`
+- `mcp-oauth-protected-resource` está publicado
+- la pantalla de consentimiento viva es `https://snhjzofsjitlyscyirov.supabase.co/functions/v1/mcpconsent`
+- el proveedor OAuth de Supabase todavía no publica el authorization server metadata requerido por ChatGPT
+
+Cuando Supabase habilite ese endpoint, la ruta configurada en `supabase/config.toml` ya queda apuntando a:
+
+```txt
+/functions/v1/mcpconsent
+```

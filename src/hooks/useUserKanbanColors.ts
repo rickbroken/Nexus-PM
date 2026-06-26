@@ -11,6 +11,7 @@ export interface UserKanbanColors {
   };
   pm?: {
     todo?: string;
+    in_progress?: string;
     review?: string;
     done?: string;
   };

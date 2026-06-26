@@ -40,6 +40,7 @@ const devColumns: { id: TaskStatus; title: string }[] = [
 // Columnas para Product Manager (sin colores hardcodeados)
 const pmColumns: { id: TaskStatus; title: string }[] = [
   { id: 'todo', title: 'Asignadas' },
+  { id: 'in_progress', title: 'En Proceso' },
   { id: 'review', title: 'Por Revisar' },
   { id: 'done', title: 'Completadas' },
 ];
@@ -423,9 +424,10 @@ export function KanbanBoard({ projectId, onTaskClick }: KanbanBoardProps) {
     // Para Product Manager: agrupar tareas de forma especial
     if (isManagerRole) {
       const pmTasks = {
-        todo: tasks.filter(t => t.status === 'todo' || t.status === 'in_progress'), // Asignadas (Por hacer + En progreso)
-        review: tasks.filter(t => t.status === 'review'), // Por revisar
-        done: tasks.filter(t => t.status === 'done'), // Completadas
+        todo: tasks.filter(t => t.status === 'todo'),
+        in_progress: tasks.filter(t => t.status === 'in_progress'),
+        review: tasks.filter(t => t.status === 'review'),
+        done: tasks.filter(t => t.status === 'done'),
       } as Record<TaskStatus, Task[]>;
       
       return pmTasks;

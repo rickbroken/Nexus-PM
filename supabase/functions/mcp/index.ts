@@ -15,6 +15,13 @@ type AgentServerContext = {
   userRole: UserRole;
 };
 
+type AuthenticatedIdentity = {
+  userId: string;
+  userRole: UserRole;
+  authMode: "oauth" | "api_key";
+  email?: string | null;
+};
+
 type AgentAuditContext = {
   enabled?: boolean;
   action_type: string;
@@ -102,6 +109,8 @@ const MAX_SELECT_LIMIT = 100;
 const MAX_STORAGE_LIST_LIMIT = 100;
 const MAX_STORAGE_DELETE_BATCH = 50;
 const MAX_AUTH_LIST_PER_PAGE = 100;
+const MCP_BASE_PATH = "/functions/v1/mcp";
+const OAUTH_PROTECTED_RESOURCE_FUNCTION_PATH = "/functions/v1/mcp-oauth-protected-resource";
 
 class InvalidConfigurationError extends Error {
   constructor(message: string) {
@@ -148,6 +157,7 @@ function parseCsvList(value: string) {
 
 const configSchema = z.object({
   SUPABASE_URL: z.string().url("SUPABASE_URL invalida"),
+  SUPABASE_ANON_KEY: z.string().min(1, "SUPABASE_ANON_KEY es obligatoria"),
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1, "SUPABASE_SERVICE_ROLE_KEY es obligatoria"),
   NEXUS_MCP_ALLOWED_USER_ID: z.string().uuid("NEXUS_MCP_ALLOWED_USER_ID debe ser un UUID"),
   NEXUS_MCP_ALLOWED_ROLE: z.enum(["admin", "pm", "dev", "advisor"]).default("admin"),
@@ -172,6 +182,7 @@ function getConfig(): EdgeConfig {
 
   const parsed = configSchema.safeParse({
     SUPABASE_URL: Deno.env.get("SUPABASE_URL"),
+    SUPABASE_ANON_KEY: Deno.env.get("SUPABASE_ANON_KEY"),
     SUPABASE_SERVICE_ROLE_KEY: Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"),
     NEXUS_MCP_ALLOWED_USER_ID: Deno.env.get("NEXUS_MCP_ALLOWED_USER_ID"),
     NEXUS_MCP_ALLOWED_ROLE: Deno.env.get("NEXUS_MCP_ALLOWED_ROLE"),
@@ -204,13 +215,34 @@ function getSupabaseClient(): ServerSupabaseClient {
   return cachedClient;
 }
 
-function buildAgentServerContext(): AgentServerContext {
+function buildAgentServerContext(identity?: AuthenticatedIdentity): AgentServerContext {
   const config = getConfig();
 
   return {
     supabaseClient: getSupabaseClient(),
-    userId: config.NEXUS_MCP_ALLOWED_USER_ID,
-    userRole: config.NEXUS_MCP_ALLOWED_ROLE,
+    userId: identity?.userId ?? config.NEXUS_MCP_ALLOWED_USER_ID,
+    userRole: identity?.userRole ?? config.NEXUS_MCP_ALLOWED_ROLE,
+  };
+}
+
+async function getUserRole(userId: string): Promise<{ role: UserRole; email: string | null }> {
+  const { data, error } = await getSupabaseClient()
+    .from("users_profiles")
+    .select("role, email")
+    .eq("id", userId)
+    .single();
+
+  if (error || !data) {
+    throw new ToolExecutionError("No se pudo validar el perfil del usuario OAuth.");
+  }
+
+  if (!["admin", "pm", "dev", "advisor"].includes(data.role)) {
+    throw new ToolExecutionError("El rol del usuario OAuth no es valido.");
+  }
+
+  return {
+    role: data.role as UserRole,
+    email: typeof data.email === "string" ? data.email : null,
   };
 }
 
@@ -1356,7 +1388,7 @@ const mcpToolDefinitions = [
   },
 ];
 
-async function dispatchTool(toolName: string, input: unknown) {
+async function dispatchTool(toolName: string, input: unknown, identity?: AuthenticatedIdentity) {
   const handler = mcpToolHandlers[toolName as keyof typeof mcpToolHandlers];
 
   if (!handler) {
@@ -1365,7 +1397,7 @@ async function dispatchTool(toolName: string, input: unknown) {
 
   try {
     return await handler({
-      context: buildAgentServerContext(),
+      context: buildAgentServerContext(identity),
       input,
     });
   } catch (error) {
@@ -1377,7 +1409,7 @@ async function dispatchTool(toolName: string, input: unknown) {
   }
 }
 
-function createNexusMcpServer() {
+function createNexusMcpServer(identity?: AuthenticatedIdentity) {
   const server = new McpServer({
     name: "nexus-pm-mcp-edge",
     version: "0.1.0",
@@ -1391,7 +1423,7 @@ function createNexusMcpServer() {
         inputSchema: tool.inputSchema,
       } as any,
       async (input: Record<string, unknown>) => {
-        const result = await dispatchTool(tool.name, input);
+        const result = await dispatchTool(tool.name, input, identity);
         return {
           content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
         } satisfies ToolCallResult;
@@ -1421,19 +1453,53 @@ function buildCorsHeaders(request: Request) {
     "Access-Control-Allow-Origin": allowOrigin,
     "Access-Control-Allow-Headers": "authorization, content-type, mcp-session-id, mcp-protocol-version, x-mcp-api-key",
     "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
-    "Access-Control-Expose-Headers": "mcp-session-id, mcp-protocol-version",
+    "Access-Control-Expose-Headers": "mcp-session-id, mcp-protocol-version, www-authenticate",
     Vary: "Origin",
   };
 }
 
-function jsonResponse(request: Request, status: number, body: Record<string, unknown>) {
+function jsonResponse(
+  request: Request,
+  status: number,
+  body: Record<string, unknown>,
+  extraHeaders?: HeadersInit
+) {
   return new Response(JSON.stringify(body), {
     status,
     headers: {
       "Content-Type": "application/json",
       ...buildCorsHeaders(request),
+      ...(extraHeaders ?? {}),
     },
   });
+}
+
+function getProjectOrigin() {
+  return new URL(getConfig().SUPABASE_URL).origin;
+}
+
+function getOAuthIssuer() {
+  return `${getProjectOrigin()}/auth/v1`;
+}
+
+function getProtectedResourceMetadataUrl(request: Request) {
+  return `${getProjectOrigin()}${OAUTH_PROTECTED_RESOURCE_FUNCTION_PATH}`;
+}
+
+function getUnauthorizedHeaders(request: Request, error?: "invalid_token") {
+  const metadataUrl = getProtectedResourceMetadataUrl(request);
+  const challenge = `Bearer realm="Nexus PM MCP", resource_metadata="${metadataUrl}"${error ? `, error="${error}"` : ""}`;
+  return { "WWW-Authenticate": challenge };
+}
+
+function buildProtectedResourceMetadata(request: Request) {
+  return {
+    resource: `${getProjectOrigin()}${MCP_BASE_PATH}`,
+    authorization_servers: [getOAuthIssuer()],
+    bearer_methods_supported: ["header"],
+    scopes_supported: ["openid", "profile", "email"],
+    resource_documentation: "https://github.com/rickbroken/Nexus-PM",
+  };
 }
 
 function ensureOriginAllowed(request: Request) {
@@ -1451,33 +1517,92 @@ function ensureOriginAllowed(request: Request) {
   return null;
 }
 
-function ensureAuthorized(request: Request) {
+async function resolveIdentityFromOAuthToken(accessToken: string): Promise<AuthenticatedIdentity> {
+  const {
+    data: { user },
+    error,
+  } = await getSupabaseClient().auth.getUser(accessToken);
+
+  if (error || !user) {
+    throw new ToolExecutionError("Token OAuth invalido.");
+  }
+
+  const requiredRole = getConfig().NEXUS_MCP_ALLOWED_ROLE;
+  const profile = await getUserRole(user.id);
+
+  if (profile.role !== requiredRole) {
+    throw new ToolExecutionError(`Este MCP requiere rol ${requiredRole}.`);
+  }
+
+  return {
+    userId: user.id,
+    userRole: profile.role,
+    authMode: "oauth",
+    email: profile.email ?? user.email ?? null,
+  };
+}
+
+async function ensureAuthorized(request: Request) {
   const expectedApiKey = getConfig().MCP_HTTP_API_KEY;
   const authorization = getFirstHeaderValue(request.headers.get("authorization"));
   const headerApiKey = getFirstHeaderValue(request.headers.get("x-mcp-api-key"));
-  const apiKey = extractBearerToken(authorization) ?? headerApiKey ?? null;
+  const bearerToken = extractBearerToken(authorization);
+  const apiKey = bearerToken ?? headerApiKey ?? null;
 
   if (!apiKey) {
-    return jsonResponse(request, 401, {
-      jsonrpc: "2.0",
-      error: { code: -32001, message: "Missing MCP API key" },
-      id: null,
-    });
+    return {
+      identity: null,
+      response: jsonResponse(
+        request,
+        401,
+        {
+          jsonrpc: "2.0",
+          error: { code: -32001, message: "Missing bearer token" },
+          id: null,
+        },
+        getUnauthorizedHeaders(request)
+      ),
+    };
   }
 
   if (apiKey !== expectedApiKey) {
-    return jsonResponse(request, 401, {
-      jsonrpc: "2.0",
-      error: { code: -32001, message: "Invalid MCP API key" },
-      id: null,
-    });
+    try {
+      const identity = await resolveIdentityFromOAuthToken(apiKey);
+      return { identity, response: null };
+    } catch (error) {
+      const message = toSafeErrorMessage(error);
+      const status = message.includes("requiere rol") ? 403 : 401;
+      return {
+        identity: null,
+        response: jsonResponse(
+          request,
+          status,
+          {
+            jsonrpc: "2.0",
+            error: { code: -32001, message },
+            id: null,
+          },
+          getUnauthorizedHeaders(request, "invalid_token")
+        ),
+      };
+    }
   }
 
-  return null;
+  return {
+    identity: {
+      userId: getConfig().NEXUS_MCP_ALLOWED_USER_ID,
+      userRole: getConfig().NEXUS_MCP_ALLOWED_ROLE,
+      authMode: "api_key",
+      email: null,
+    } satisfies AuthenticatedIdentity,
+    response: null,
+  };
 }
 
 async function handleRequest(request: Request) {
   try {
+    const pathname = new URL(request.url).pathname;
+
     if (request.method === "OPTIONS") {
       return new Response(null, { status: 204, headers: buildCorsHeaders(request) });
     }
@@ -1485,15 +1610,16 @@ async function handleRequest(request: Request) {
     const originError = ensureOriginAllowed(request);
     if (originError) return originError;
 
-    const authError = ensureAuthorized(request);
-    if (authError) return authError;
+    const authResult = await ensureAuthorized(request);
+    if (authResult.response) return authResult.response;
 
     const transport = new WebStandardStreamableHTTPServerTransport({
       sessionIdGenerator: undefined,
       enableJsonResponse: true,
     });
 
-    const server = createNexusMcpServer();
+    const identity = authResult.identity ?? undefined;
+    const server = createNexusMcpServer(identity);
     await server.connect(transport);
 
     const response = await transport.handleRequest(request);
