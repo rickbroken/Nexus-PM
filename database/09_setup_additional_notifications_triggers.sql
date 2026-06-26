@@ -315,7 +315,7 @@ BEGIN
                 created_by
             )
             SELECT 
-                unnest(project_members),
+                member_id,
                 'project_updated',
                 'Proyecto actualizado',
                 COALESCE(updater_name, 'Usuario') || ' actualizó el proyecto: ' || NEW.name,
@@ -323,7 +323,8 @@ BEGIN
                 NEW.id::text,
                 '/projects/' || NEW.id,
                 auth.uid()
-            WHERE unnest(project_members) != COALESCE(auth.uid(), '00000000-0000-0000-0000-000000000000'::uuid);
+            FROM unnest(project_members) AS member_id
+            WHERE member_id != COALESCE(auth.uid(), '00000000-0000-0000-0000-000000000000'::uuid);
         END IF;
     END IF;
 
