@@ -31,6 +31,12 @@ import { Plus, Trash2, Eye, EyeOff, X, Users } from 'lucide-react';
 import { Project } from '../../../lib/supabase';
 import { toast } from 'sonner';
 import { Checkbox } from '../ui/checkbox';
+import {
+  canUseProjectEnvVariables,
+  isProjectEnvVariablesUnsupportedError,
+  markProjectEnvVariablesAvailable,
+  markProjectEnvVariablesUnavailable,
+} from '../../../lib/projectEnvVariables';
 
 const projectSchema = z.object({
   name: z.string().min(1, 'El nombre es requerido'),
@@ -127,6 +133,11 @@ export function ProjectForm({ open, onClose, project }: ProjectFormProps) {
         
         // Load environment variables
         const loadEnvVariables = async () => {
+          if (!canUseProjectEnvVariables()) {
+            setEnvVariables([]);
+            return;
+          }
+
           try {
             const { data, error } = await supabase
               .from('project_env_variables')
@@ -134,13 +145,13 @@ export function ProjectForm({ open, onClose, project }: ProjectFormProps) {
               .eq('project_id', project.id);
             
             if (error) {
-              // Check if it's a "table not found" error - silently ignore
-              if (error.code === 'PGRST205' || error.message.includes('Could not find the table')) {
-                // Table doesn't exist yet - user needs to run migration
+              if (isProjectEnvVariablesUnsupportedError(error)) {
+                markProjectEnvVariablesUnavailable();
                 setEnvVariables([]);
                 return;
               }
             } else if (data) {
+              markProjectEnvVariablesAvailable();
               setEnvVariables(data.map((item) => ({
                 id: item.id,
                 key: item.key,
@@ -149,7 +160,9 @@ export function ProjectForm({ open, onClose, project }: ProjectFormProps) {
               })));
             }
           } catch (err) {
-            // Silently catch unexpected errors
+            if (isProjectEnvVariablesUnsupportedError(err)) {
+              markProjectEnvVariablesUnavailable();
+            }
             setEnvVariables([]);
           }
         };
@@ -223,46 +236,54 @@ export function ProjectForm({ open, onClose, project }: ProjectFormProps) {
         }
         
         // Update environment variables for existing project
-        try {
-          // Delete all existing variables for this project first
-          await supabase
-            .from('project_env_variables')
-            .delete()
-            .eq('project_id', project.id);
+        if (canUseProjectEnvVariables()) {
+          try {
+            const { error: deleteError } = await supabase
+              .from('project_env_variables')
+              .delete()
+              .eq('project_id', project.id);
 
-          // Insert new variables only if there are any
-          if (envVariables.length > 0) {
-            const varsToInsert = envVariables
-              .filter(v => v.key.trim() && v.value.trim()) // Only insert non-empty
-              .map(v => ({
-                project_id: project.id,
-                key: v.key.trim(),
-                value: v.value.trim(),
-                visible_to_devs: v.visible,
-                created_by: user?.id,
-              }));
+            if (deleteError) {
+              if (isProjectEnvVariablesUnsupportedError(deleteError)) {
+                markProjectEnvVariablesUnavailable();
+                return;
+              }
+              throw deleteError;
+            }
 
-            if (varsToInsert.length > 0) {
-              const { error: envError } = await supabase
-                .from('project_env_variables')
-                .insert(varsToInsert);
-              
-              if (envError) {
-                // Check if table doesn't exist
-                if (envError.code === 'PGRST205' || envError.message.includes('Could not find the table')) {
-                  toast.warning('Proyecto actualizado. Para guardar variables de entorno, ejecuta la migración SQL.');
+            if (envVariables.length > 0) {
+              const varsToInsert = envVariables
+                .filter(v => v.key.trim() && v.value.trim())
+                .map(v => ({
+                  project_id: project.id,
+                  key: v.key.trim(),
+                  value: v.value.trim(),
+                  visible_to_devs: v.visible,
+                  created_by: user?.id,
+                }));
+
+              if (varsToInsert.length > 0) {
+                const { error: envError } = await supabase
+                  .from('project_env_variables')
+                  .insert(varsToInsert);
+                
+                if (envError) {
+                  if (isProjectEnvVariablesUnsupportedError(envError)) {
+                    markProjectEnvVariablesUnavailable();
+                  } else {
+                    toast.error('Proyecto actualizado pero hubo un error al guardar las variables de entorno');
+                  }
                 } else {
-                  toast.error('Proyecto actualizado pero hubo un error al guardar las variables de entorno');
+                  markProjectEnvVariablesAvailable();
                 }
               }
             }
-          }
-        } catch (envErr) {
-          // Don't fail the whole operation
-          // Check if it's a "table not found" error - silently ignore
-          const error = envErr as any;
-          if (!(error.code === 'PGRST205' || error.message?.includes('Could not find the table'))) {
-            console.error('Error updating environment variables:', envErr);
+          } catch (envErr) {
+            if (isProjectEnvVariablesUnsupportedError(envErr)) {
+              markProjectEnvVariablesUnavailable();
+            } else {
+              console.error('Error updating environment variables:', envErr);
+            }
           }
         }
       } else {
@@ -283,7 +304,7 @@ export function ProjectForm({ open, onClose, project }: ProjectFormProps) {
         }
         
         // Insert environment variables for new project
-        if (envVariables.length > 0 && result.id) {
+        if (envVariables.length > 0 && result.id && canUseProjectEnvVariables()) {
           try {
             const varsToInsert = envVariables
               .filter(v => v.key.trim() && v.value.trim()) // Only insert non-empty
@@ -301,16 +322,19 @@ export function ProjectForm({ open, onClose, project }: ProjectFormProps) {
                 .insert(varsToInsert);
               
               if (envError) {
-                // Check if table doesn't exist
-                if (envError.code === 'PGRST205' || envError.message.includes('Could not find the table')) {
-                  toast.warning('Proyecto creado. Para guardar variables de entorno, ejecuta la migración SQL.');
+                if (isProjectEnvVariablesUnsupportedError(envError)) {
+                  markProjectEnvVariablesUnavailable();
                 } else {
                   toast.error('Proyecto creado pero hubo un error al guardar las variables de entorno');
                 }
+              } else {
+                markProjectEnvVariablesAvailable();
               }
             }
           } catch (envErr) {
-            // Don't fail the whole operation
+            if (isProjectEnvVariablesUnsupportedError(envErr)) {
+              markProjectEnvVariablesUnavailable();
+            }
           }
         }
       }

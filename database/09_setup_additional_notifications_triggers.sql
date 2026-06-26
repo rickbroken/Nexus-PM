@@ -111,11 +111,9 @@ BEGIN
         -- Obtener información del proyecto
         SELECT 
             p.id,
-            p.name as project_name,
-            pf.advisor_id
+            p.name as project_name
         INTO project_info
         FROM projects p
-        LEFT JOIN project_finances pf ON p.id = pf.project_id
         WHERE p.id = NEW.project_id;
 
         payment_amount := ABS(NEW.amount);
@@ -124,29 +122,29 @@ BEGIN
         -- 2A. NOTIFICAR PAGO RECIBIDO (solo ingresos)
         -- =====================================================
         IF NEW.type = 'income' THEN
-            -- Notificar al advisor del proyecto (si existe)
-            IF project_info.advisor_id IS NOT NULL THEN
-                INSERT INTO public.notifications (
-                    user_id,
-                    type,
-                    title,
-                    message,
-                    entity_type,
-                    entity_id,
-                    action_url,
-                    created_by
-                ) VALUES (
-                    project_info.advisor_id,
-                    'payment_received',
-                    'Pago recibido',
-                    'Pago de $' || TO_CHAR(payment_amount, 'FM999,999,999.00') || 
-                    ' registrado en: ' || COALESCE(project_info.project_name, 'Proyecto'),
-                    'payment',
-                    NEW.id::text,
-                    '/finances',
-                    NEW.created_by
-                );
-            END IF;
+            -- Notificar a todos los advisors activos
+            INSERT INTO public.notifications (
+                user_id,
+                type,
+                title,
+                message,
+                entity_type,
+                entity_id,
+                action_url,
+                created_by
+            )
+            SELECT 
+                id,
+                'payment_received',
+                'Pago recibido',
+                'Pago de $' || TO_CHAR(payment_amount, 'FM999,999,999.00') || 
+                ' registrado en: ' || COALESCE(project_info.project_name, 'Proyecto'),
+                'payment',
+                NEW.id::text,
+                '/finances',
+                NEW.created_by
+            FROM users_profiles
+            WHERE role = 'advisor' AND is_active = true;
 
             -- =====================================================
             -- 2B. NOTIFICAR PAGO GRANDE (ingresos mayores al umbral)

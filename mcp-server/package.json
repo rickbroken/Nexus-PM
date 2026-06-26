@@ -12,7 +12,8 @@
     "start:http": "cross-env MCP_TRANSPORT=http node dist/mcp-server/src/index.js",
     "start:stdio": "cross-env MCP_TRANSPORT=stdio node dist/mcp-server/src/index.js",
     "smoke": "tsx src/smoke.ts",
-    "smoke:http": "tsx src/smoke-http.ts"
+    "smoke:http": "tsx src/smoke-http.ts",
+    "smoke:remote": "tsx src/smoke-remote.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",

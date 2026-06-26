@@ -41,6 +41,7 @@ interface TaskAttachmentsProps {
 export function TaskAttachments({ taskId, task }: TaskAttachmentsProps) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const isManagerRole = user?.role === 'admin' || user?.role === 'pm';
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -64,7 +65,7 @@ export function TaskAttachments({ taskId, task }: TaskAttachmentsProps) {
         return;
       }
       
-      if (!['pm', 'dev'].includes(user.role)) {
+      if (!isManagerRole && user.role !== 'dev') {
         return;
       }
 
@@ -77,7 +78,7 @@ export function TaskAttachments({ taskId, task }: TaskAttachmentsProps) {
           return false; // No marcar los que yo subí
         }
 
-        if (user.role === 'pm') {
+        if (isManagerRole) {
           return !attachment.viewed_by_pm; // No visto por PM
         } else if (user.role === 'dev') {
           return !attachment.viewed_by_dev; // No visto por Dev
@@ -97,7 +98,7 @@ export function TaskAttachments({ taskId, task }: TaskAttachmentsProps) {
         try {
           const updates: any = {}; 
           
-          if (user.role === 'pm') {
+          if (isManagerRole) {
             updates.viewed_by_pm = true;
             updates.viewed_by_pm_at = new Date().toISOString();
           } else if (user.role === 'dev') {
@@ -150,7 +151,7 @@ export function TaskAttachments({ taskId, task }: TaskAttachmentsProps) {
       if (!user || !task) return;
 
       // Si el PM abre el panel y hay adjuntos nuevos para él
-      if (user.role === 'pm' && task.has_new_attachments_for_pm) {
+      if (isManagerRole && task.has_new_attachments_for_pm) {
         const { error } = await supabase
           .from('tasks')
           .update({ has_new_attachments_for_pm: false })
@@ -181,7 +182,7 @@ export function TaskAttachments({ taskId, task }: TaskAttachmentsProps) {
     };
 
     markAttachmentsAsSeen();
-  }, [taskId, user, task?.has_new_attachments_for_pm, task?.has_new_attachments_for_dev, queryClient]);
+  }, [taskId, user, isManagerRole, task?.has_new_attachments_for_pm, task?.has_new_attachments_for_dev, queryClient]);
 
   // Cargar URLs de thumbnails para todas las imágenes
   useEffect(() => {
@@ -246,17 +247,17 @@ export function TaskAttachments({ taskId, task }: TaskAttachmentsProps) {
     setDownloadingFileId(null);
     
     // Marcar como visto por el usuario actual
-    if (user?.role && ['pm', 'dev'].includes(user.role)) {
+    if (user?.role && (isManagerRole || user.role === 'dev')) {
       // Verificar si ya está marcado como visto para evitar llamadas innecesarias
       const isAlreadyViewed = 
-        (user.role === 'pm' && attachment.viewed_by_pm) ||
+        (isManagerRole && attachment.viewed_by_pm) ||
         (user.role === 'dev' && attachment.viewed_by_dev);
       
       if (!isAlreadyViewed) {
         markAttachmentAsViewedMutation.mutate({
           attachmentId: attachment.id,
           taskId,
-          userRole: user.role,
+          userRole: isManagerRole ? 'pm' : user.role,
         });
       }
     }
@@ -288,16 +289,16 @@ export function TaskAttachments({ taskId, task }: TaskAttachmentsProps) {
     }
 
     // Marcar como visto por el usuario actual
-    if (user?.role && ['pm', 'dev'].includes(user.role)) {
+    if (user?.role && (isManagerRole || user.role === 'dev')) {
       const isAlreadyViewed = 
-        (user.role === 'pm' && attachment.viewed_by_pm) ||
+        (isManagerRole && attachment.viewed_by_pm) ||
         (user.role === 'dev' && attachment.viewed_by_dev);
       
       if (!isAlreadyViewed) {
         markAttachmentAsViewedMutation.mutate({
           attachmentId: attachment.id,
           taskId,
-          userRole: user.role,
+          userRole: isManagerRole ? 'pm' : user.role,
         });
       }
     }
@@ -345,7 +346,7 @@ export function TaskAttachments({ taskId, task }: TaskAttachmentsProps) {
     }
 
     // Si es PM quien subió, mostrar estado de lectura del Dev
-    if (user.role === 'pm') {
+    if (isManagerRole) {
       return {
         isRead: attachment.viewed_by_dev,
         readAt: attachment.viewed_by_dev_at,

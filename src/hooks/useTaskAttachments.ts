@@ -135,7 +135,7 @@ export function useUploadAttachment() {
           file_type: file.type,
           uploaded_by: userId,
           // Auto-marcar como visto por quien lo sube
-          viewed_by_pm: userRole === 'pm',
+          viewed_by_pm: userRole === 'pm' || userRole === 'admin',
           viewed_by_dev: userRole === 'dev',
         })
         .select(`
@@ -164,7 +164,7 @@ export function useUploadAttachment() {
         updates.has_new_attachments_for_pm = true;
       }
       // Si es PM quien sube, marcar como nuevo para dev
-      else if (userRole === 'pm') {
+      else if (userRole === 'pm' || userRole === 'admin') {
         updates.has_new_attachments_for_dev = true;
       }
 
@@ -315,7 +315,7 @@ export function useMarkAttachmentAsViewed() {
     }) => {
       const updates: any = {};
       
-      if (userRole === 'pm') {
+      if (userRole === 'pm' || userRole === 'admin') {
         updates.viewed_by_pm = true;
         updates.viewed_by_pm_at = new Date().toISOString();
       } else if (userRole === 'dev') {

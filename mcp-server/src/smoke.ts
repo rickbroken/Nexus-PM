@@ -18,6 +18,7 @@ function getMaskedEnvSummary() {
     SUPABASE_SERVICE_ROLE_KEY: '***',
     NEXUS_MCP_ALLOWED_USER_ID: config.NEXUS_MCP_ALLOWED_USER_ID,
     NEXUS_MCP_ALLOWED_ROLE: config.NEXUS_MCP_ALLOWED_ROLE,
+    NEXUS_MCP_ALLOWED_RPCS: config.NEXUS_MCP_ALLOWED_RPCS,
   };
 }
 
@@ -193,6 +194,33 @@ async function main() {
       client,
       'nexus_db_select',
       {
+        table: 'project_credentials',
+        limit: 1,
+      },
+      'protegida'
+    );
+
+    await expectToolFailure(
+      client,
+      'nexus_db_insert',
+      {
+        table: 'reminders',
+        data: {
+          title: `[SMOKE FORGED USER] ${randomUUID()}`,
+          remind_at: remindAt,
+          source: 'agent',
+          status: 'pending',
+          priority: 'medium',
+          user_id: randomUUID(),
+        },
+      },
+      'suplantar user_id'
+    );
+
+    await expectToolFailure(
+      client,
+      'nexus_db_select',
+      {
         table: 'auth.users',
         limit: 1,
       },
@@ -229,10 +257,10 @@ async function main() {
       client,
       'nexus_db_rpc',
       {
-        functionName: 'non_existing_rpc',
+        functionName: 'auto_archive_completed_tasks',
         args: {},
       },
-      'no existe'
+      'NEXUS_MCP_ALLOWED_RPCS'
     );
 
     const schemaPayload = parseToolJson<{
@@ -445,6 +473,7 @@ async function main() {
       console.log('[smoke] storage write tests: SKIPPED (sin buckets)');
     }
     console.log('[smoke] nexus_db_rpc protegido: OK');
+    console.log('[smoke] bloqueo de tablas protegidas y user_id forjado: OK');
     console.log(
       '[smoke] Reminder insertado y eliminado:',
       JSON.stringify({

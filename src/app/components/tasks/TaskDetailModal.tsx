@@ -84,17 +84,18 @@ export function TaskDetailModal({
   const updateTask = useUpdateTask();
   const archiveTask = useArchiveTask();
   const queryClient = useQueryClient();
+  const isManagerRole = user?.role === 'admin' || user?.role === 'pm';
 
   // Marcar observación como leída cuando el PM abre el modal
   useEffect(() => {
-    if (open && task && user?.role === 'pm' && task.dev_notes && !task.observation_read_by_pm) {
+    if (open && task && isManagerRole && task.dev_notes && !task.observation_read_by_pm) {
       // Marcar como leída automáticamente
       updateTask.mutate({
         id: task.id,
         observation_read_by_pm: true,
       });
     }
-  }, [open, task?.id, user?.role, task?.dev_notes, task?.observation_read_by_pm]);
+  }, [open, task?.id, isManagerRole, task?.dev_notes, task?.observation_read_by_pm]);
 
   // Marcar motivo de devolución como leído cuando el Dev abre el modal
   useEffect(() => {
@@ -160,11 +161,11 @@ export function TaskDetailModal({
 
   const isOverdue = isDateOverdue(task.due_date) && task.status !== 'done';
 
-  const canEdit = user?.role === 'pm' || user?.id === task.assigned_to;
+  const canEdit = isManagerRole || user?.id === task.assigned_to;
   // PM puede eliminar cualquier tarea, Developer solo las que él creó
-  const canDelete = user?.role === 'pm' || (user?.role === 'dev' && user?.id === task.created_by);
+  const canDelete = isManagerRole || (user?.role === 'dev' && user?.id === task.created_by);
   // Solo PM puede archivar tareas completadas
-  const canArchive = user?.role === 'pm' && task.status === 'done';
+  const canArchive = isManagerRole && task.status === 'done';
   
   // Determinar si el developer está trabajando en una tarea (asignada a él)
   const isDevWorkingOnTask = user?.role === 'dev' && user?.id === task.assigned_to;
@@ -384,7 +385,7 @@ export function TaskDetailModal({
                       </span>
                     )}
                     {/* Chulitos de lectura para el PM */}
-                    {user?.role === 'pm' && (
+                    {isManagerRole && (
                       <div className="flex items-center gap-0.5" title={task.rejection_read_by_dev ? 'Leído por Developer' : 'No leído'}>
                         <Check className={`h-4 w-4 ${task.rejection_read_by_dev ? 'text-blue-600' : 'text-gray-400'}`} />
                         <Check className={`h-4 w-4 -ml-2 ${task.rejection_read_by_dev ? 'text-blue-600' : 'text-gray-400'}`} />

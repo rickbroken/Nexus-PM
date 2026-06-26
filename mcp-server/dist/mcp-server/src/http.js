@@ -3,6 +3,7 @@ import cors from 'cors';
 import express from 'express';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
+import { InvalidConfigurationError } from './errors.js';
 import { getServerConfig } from './config.js';
 import { createNexusMcpServer } from './server.js';
 function buildBadRequestResponse(res, message) {
@@ -50,6 +51,46 @@ function getFirstHeaderValue(value) {
     }
     return value;
 }
+function extractBearerToken(value) {
+    if (!value)
+        return null;
+    const match = /^Bearer\s+(.+)$/i.exec(value.trim());
+    return match?.[1]?.trim() || null;
+}
+function apiKeyProtection(expectedApiKey) {
+    return (req, res, next) => {
+        if (req.method === 'OPTIONS') {
+            next();
+            return;
+        }
+        const authorization = getFirstHeaderValue(req.headers.authorization);
+        const headerApiKey = getFirstHeaderValue(req.headers['x-mcp-api-key']);
+        const apiKey = extractBearerToken(authorization) ?? headerApiKey ?? null;
+        if (!apiKey) {
+            res.status(401).json({
+                jsonrpc: '2.0',
+                error: {
+                    code: -32001,
+                    message: 'Missing MCP API key',
+                },
+                id: null,
+            });
+            return;
+        }
+        if (apiKey !== expectedApiKey) {
+            res.status(401).json({
+                jsonrpc: '2.0',
+                error: {
+                    code: -32001,
+                    message: 'Invalid MCP API key',
+                },
+                id: null,
+            });
+            return;
+        }
+        next();
+    };
+}
 function hostOriginProtection(allowedHosts, allowedOrigins) {
     return (req, res, next) => {
         const hostHeader = getFirstHeaderValue(req.headers.host);
@@ -83,9 +124,13 @@ function hostOriginProtection(allowedHosts, allowedOrigins) {
 }
 export async function startHttpServer() {
     const config = getServerConfig();
+    if (!config.MCP_HTTP_API_KEY) {
+        throw new InvalidConfigurationError('MCP_HTTP_API_KEY es obligatoria cuando MCP_TRANSPORT=http.');
+    }
     const app = express();
     const transports = new Map();
     app.use(hostOriginProtection(config.MCP_ALLOWED_HOSTS, config.MCP_ALLOWED_ORIGINS));
+    app.use(apiKeyProtection(config.MCP_HTTP_API_KEY));
     app.use(cors({
         origin: (origin, callback) => {
             if (!origin || config.MCP_ALLOWED_ORIGINS.includes(origin)) {

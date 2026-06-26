@@ -55,6 +55,7 @@ export function TaskForm({ open, onClose, task, defaultProjectId, observationsMo
   const { data: projects } = useProjects();
   const createTask = useCreateTask();
   const updateTask = useUpdateTask();
+  const isManagerRole = user?.role === 'admin' || user?.role === 'pm';
 
   // Determinar si el developer puede editar la tarea completa
   // Solo puede editar si él creó la tarea, de lo contrario solo puede agregar observaciones
@@ -71,8 +72,8 @@ export function TaskForm({ open, onClose, task, defaultProjectId, observationsMo
         .eq('is_active', true)
         .order('full_name');
 
-      // Si el usuario es PM, solo mostrar developers
-      if (user?.role === 'pm') {
+      // Si el usuario es admin o PM, solo mostrar developers para asignacion
+      if (isManagerRole) {
         query = query.eq('role', 'dev');
       }
 
@@ -119,17 +120,17 @@ export function TaskForm({ open, onClose, task, defaultProjectId, observationsMo
       // Extraer los proyectos
       return data.map(pm => pm.projects).filter(Boolean) as Project[];
     },
-    enabled: !!selectedDeveloperId && user?.role === 'pm',
+    enabled: !!selectedDeveloperId && isManagerRole,
   });
 
   // Determinar qué proyectos mostrar
-  const availableProjects = user?.role === 'pm' && selectedDeveloperId 
+  const availableProjects = isManagerRole && selectedDeveloperId 
     ? developerProjects 
     : projects;
 
   // Limpiar proyecto seleccionado cuando cambia el developer
   useEffect(() => {
-    if (user?.role === 'pm' && !task) {
+    if (isManagerRole && !task) {
       // Solo limpiar si el proyecto actual no está en la nueva lista de proyectos disponibles
       const currentProjectId = watch('project_id');
       const isProjectAvailable = developerProjects?.some(p => p.id === currentProjectId);
@@ -138,7 +139,7 @@ export function TaskForm({ open, onClose, task, defaultProjectId, observationsMo
         setValue('project_id', '');
       }
     }
-  }, [selectedDeveloperId, developerProjects, user?.role, task, watch, setValue]);
+  }, [selectedDeveloperId, developerProjects, isManagerRole, task, watch, setValue]);
 
   // Sincronizar formulario cuando cambie la tarea (editar) o se abra el modal
   useEffect(() => {
@@ -309,12 +310,12 @@ export function TaskForm({ open, onClose, task, defaultProjectId, observationsMo
                       ))}
                     </SelectContent>
                   </Select>
-                  {!selectedDeveloperId && user?.role === 'pm' && (
+                  {!selectedDeveloperId && isManagerRole && (
                     <p className="text-xs text-amber-600 mt-1">
                       ⚠️ Selecciona un desarrollador para ver sus proyectos asignados
                     </p>
                   )}
-                  {selectedDeveloperId && user?.role === 'pm' && (
+                  {selectedDeveloperId && isManagerRole && (
                     <p className="text-xs text-gray-500 mt-1">
                       Solo se mostrarán los proyectos asignados a este desarrollador
                     </p>
@@ -328,11 +329,11 @@ export function TaskForm({ open, onClose, task, defaultProjectId, observationsMo
                 <Select
                   value={watch('project_id') || ''}
                   onValueChange={(value) => setValue('project_id', value)}
-                  disabled={user?.role === 'pm' && !selectedDeveloperId}
+                  disabled={isManagerRole && !selectedDeveloperId}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder={
-                      user?.role === 'pm' && !selectedDeveloperId 
+                      isManagerRole && !selectedDeveloperId 
                         ? "Primero selecciona un desarrollador" 
                         : "Seleccionar proyecto"
                     } />
@@ -346,7 +347,7 @@ export function TaskForm({ open, onClose, task, defaultProjectId, observationsMo
                       ))
                     ) : (
                       <SelectItem value="no-projects" disabled>
-                        {user?.role === 'pm' 
+                        {isManagerRole
                           ? 'Este desarrollador no tiene proyectos asignados' 
                           : 'No hay proyectos disponibles'}
                       </SelectItem>
@@ -356,7 +357,7 @@ export function TaskForm({ open, onClose, task, defaultProjectId, observationsMo
                 {errors.project_id && (
                   <p className="text-sm text-red-600 mt-1">{errors.project_id.message}</p>
                 )}
-                {user?.role === 'pm' && selectedDeveloperId && availableProjects?.length === 0 && (
+                {isManagerRole && selectedDeveloperId && availableProjects?.length === 0 && (
                   <p className="text-xs text-amber-600 mt-1">
                     ℹ️ Asigna proyectos a este desarrollador desde el módulo de Proyectos
                   </p>
@@ -387,7 +388,7 @@ export function TaskForm({ open, onClose, task, defaultProjectId, observationsMo
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {user?.role === 'pm' ? (
+                      {isManagerRole ? (
                         // Estados para Product Manager
                         <>
                           <SelectItem value="todo">Asignadas</SelectItem>
@@ -405,7 +406,7 @@ export function TaskForm({ open, onClose, task, defaultProjectId, observationsMo
                       )}
                     </SelectContent>
                   </Select>
-                  {user?.role === 'pm' && (
+                  {isManagerRole && (
                     <p className="text-xs text-gray-500 mt-1">
                       Los estados reflejan tu vista como PM
                     </p>

@@ -1,6 +1,6 @@
 import { ToolExecutionError } from '../errors.js';
 import { getServerConfig } from '../config.js';
-import { AUTH_BLOCKED_DB_TABLES, MAX_SELECT_LIMIT, PROTECTED_WRITE_TABLES } from './types.js';
+import { AUTH_BLOCKED_DB_TABLES, DEFAULT_ACTOR_COLUMNS, ENFORCED_ACTOR_COLUMNS, MAX_SELECT_LIMIT, PROTECTED_READ_TABLES, PROTECTED_WRITE_TABLES, } from './types.js';
 import { logAgentAction, tryLogAgentFailure } from './audit.service.js';
 function isPlainRecord(value) {
     return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -133,6 +133,11 @@ async function ensurePublicTableAllowed(context, table) {
     }
     return normalizedTable;
 }
+function ensureTableReadAllowed(table) {
+    if (PROTECTED_READ_TABLES.includes(table)) {
+        throw new ToolExecutionError(`La tabla ${table} esta protegida para lectura generica.`);
+    }
+}
 function ensureTableWriteAllowed(table, action) {
     if (PROTECTED_WRITE_TABLES.includes(table)) {
         throw new ToolExecutionError(`La tabla ${table} esta protegida para ${action}.`);
@@ -143,22 +148,40 @@ function ensureGenericAgentActionsWriteBlocked(table) {
         throw new ToolExecutionError('agent_actions solo permite inserciones desde la auditoria interna.');
     }
 }
+function enforceActorColumns(payload, columns, context, mode) {
+    for (const column of ENFORCED_ACTOR_COLUMNS) {
+        if (!columns.has(column) || payload[column] === undefined || payload[column] === null) {
+            continue;
+        }
+        if (payload[column] !== context.userId) {
+            throw new ToolExecutionError(`No se permite suplantar ${column} en ${mode}. Debe coincidir con NEXUS_MCP_ALLOWED_USER_ID.`);
+        }
+    }
+    if (mode === 'insert') {
+        for (const column of DEFAULT_ACTOR_COLUMNS) {
+            if (columns.has(column) && payload[column] === undefined) {
+                payload[column] = context.userId;
+            }
+        }
+    }
+}
 async function sanitizeInsertData(context, table, data) {
     if (!isPlainRecord(data) || Object.keys(data).length === 0) {
         throw new ToolExecutionError('data debe ser un objeto no vacio.');
     }
     const payload = { ...data };
     const columns = await getPublicTableColumns(context, table);
-    if (columns.has('user_id') && payload.user_id === undefined) {
-        payload.user_id = context.userId;
-    }
+    enforceActorColumns(payload, columns, context, 'insert');
     return payload;
 }
-async function sanitizeUpdateData(_context, _table, data) {
+async function sanitizeUpdateData(context, table, data) {
     if (!isPlainRecord(data) || Object.keys(data).length === 0) {
         throw new ToolExecutionError('data debe ser un objeto no vacio.');
     }
-    return { ...data };
+    const payload = { ...data };
+    const columns = await getPublicTableColumns(context, table);
+    enforceActorColumns(payload, columns, context, 'update');
+    return payload;
 }
 function buildEntityMetadata(table, rows) {
     const firstRow = rows[0] ?? {};
@@ -208,6 +231,7 @@ async function auditFailure(context, audit, error) {
 export async function selectRows(context, input, audit) {
     try {
         const table = await ensurePublicTableAllowed(context, input.table);
+        ensureTableReadAllowed(table);
         const columns = sanitizeColumns(input.columns);
         const limit = Math.min(input.limit ?? 20, MAX_SELECT_LIMIT);
         let query = context.supabaseClient.schema('public').from(table).select(columns);
@@ -342,6 +366,10 @@ export async function executeRpc(context, input, audit) {
         const publicFunctions = await getPublicFunctionNames(context);
         if (!publicFunctions.has(functionName)) {
             throw new ToolExecutionError(`La funcion public.${functionName} no existe o no esta expuesta.`);
+        }
+        const config = getServerConfig();
+        if (!config.NEXUS_MCP_ALLOWED_RPCS.includes(functionName)) {
+            throw new ToolExecutionError(`La funcion public.${functionName} no esta permitida por NEXUS_MCP_ALLOWED_RPCS.`);
         }
         const { data, error } = await context.supabaseClient.rpc(functionName, input.args ?? {});
         if (error) {

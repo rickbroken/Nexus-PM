@@ -11,13 +11,23 @@ export interface AgentServerContext {
   userRole: UserRole;
 }
 
-export const PROTECTED_WRITE_TABLES = ['agent_actions'] as const;
+export const PROTECTED_READ_TABLES = ['project_credentials'] as const;
+export const PROTECTED_WRITE_TABLES = ['agent_actions', 'project_credentials'] as const;
 export const AUTH_BLOCKED_DB_TABLES = ['auth.users'] as const;
 export const MAX_SELECT_LIMIT = 100;
 export const MAX_SCHEMA_ITEMS = 200;
 export const MAX_STORAGE_LIST_LIMIT = 100;
 export const MAX_STORAGE_DELETE_BATCH = 50;
 export const MAX_AUTH_LIST_PER_PAGE = 100;
+export const DEFAULT_ACTOR_COLUMNS = ['user_id', 'created_by', 'added_by', 'uploaded_by'] as const;
+export const ENFORCED_ACTOR_COLUMNS = [
+  'user_id',
+  'created_by',
+  'added_by',
+  'uploaded_by',
+  'deleted_by',
+  'cancelled_by',
+] as const;
 
 export type AgentActionStatus = 'success' | 'failed' | 'pending';
 export type SimpleFilterValue = string | number | boolean | null;

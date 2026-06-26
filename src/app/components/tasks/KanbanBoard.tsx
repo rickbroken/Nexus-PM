@@ -66,6 +66,7 @@ interface TaskCardProps {
 
 function TaskCard({ task, onTaskClick, userRole }: TaskCardProps) {
   const { user } = useAuth();
+  const isManagerRole = userRole === 'admin' || userRole === 'pm';
   const [{ isDragging }, drag] = useDrag(() => ({
     type: 'TASK',
     item: { id: task.id, status: task.status },
@@ -154,7 +155,7 @@ function TaskCard({ task, onTaskClick, userRole }: TaskCardProps) {
             )}
 
             {/* Indicador de observación sin leer (solo para PM) */}
-            {userRole === 'pm' && task.dev_notes && !task.observation_read_by_pm && (
+            {isManagerRole && task.dev_notes && !task.observation_read_by_pm && (
               <div className="flex items-center gap-1.5">
                 <Badge className="text-xs bg-blue-500 text-white animate-pulse">
                   <MessageSquare className="h-3 w-3 mr-1" />
@@ -174,7 +175,7 @@ function TaskCard({ task, onTaskClick, userRole }: TaskCardProps) {
             )}
 
             {/* Indicador de adjuntos nuevos (para PM cuando dev sube) */}
-            {userRole === 'pm' && task.has_new_attachments_for_pm && (
+            {isManagerRole && task.has_new_attachments_for_pm && (
               <div className="flex items-center gap-1.5">
                 <Badge className="text-xs bg-purple-500 text-white animate-pulse">
                   <Paperclip className="h-3 w-3 mr-1" />
@@ -233,7 +234,7 @@ function TaskCard({ task, onTaskClick, userRole }: TaskCardProps) {
                     <span className="text-xs text-gray-900 font-medium">
                       {task.assignee.full_name}
                     </span>
-                    {userRole === 'pm' && (
+                    {isManagerRole && (
                       <span className="text-xs text-gray-500">
                         Developer
                       </span>
@@ -272,13 +273,14 @@ interface ColumnProps {
 
 function Column({ column, tasks, onTaskClick, userRole, onRequestRejection }: ColumnProps) {
   const updateTask = useUpdateTask();
+  const isManagerRole = userRole === 'admin' || userRole === 'pm';
 
   const [{ isOver }, drop] = useDrop(() => ({
     accept: 'TASK',
     drop: (item: { id: string; status: TaskStatus }) => {
       if (item.status !== column.id) {
         // Si es PM rechazando una tarea (de review a todo), pedir motivo
-        if (userRole === 'pm' && item.status === 'review' && column.id === 'todo') {
+        if (isManagerRole && item.status === 'review' && column.id === 'todo') {
           onRequestRejection?.(item.id, column.id);
           return;
         }
@@ -290,7 +292,7 @@ function Column({ column, tasks, onTaskClick, userRole, onRequestRejection }: Co
         };
 
         // Si es PM moviendo tareas
-        if (userRole === 'pm') {
+        if (isManagerRole) {
           // De "Por Revisar" a "Completadas" = Aprobar
           if (item.status === 'review' && column.id === 'done') {
             updates.review_status = 'approved';
@@ -320,7 +322,7 @@ function Column({ column, tasks, onTaskClick, userRole, onRequestRejection }: Co
     collect: (monitor) => ({
       isOver: monitor.isOver(),
     }),
-  }), [userRole, onRequestRejection]);
+  }), [isManagerRole, userRole, onRequestRejection]);
 
   // Determinar si es un color personalizado (empieza con "custom-")
   const isCustomColor = column.color.startsWith('custom-');
@@ -337,7 +339,7 @@ function Column({ column, tasks, onTaskClick, userRole, onRequestRejection }: Co
         <h3 className="font-semibold">{column.title}</h3>
         <div className="flex items-center gap-2">
           <KanbanColumnColorPicker 
-            role={userRole === 'pm' ? 'pm' : 'dev'} 
+            role={isManagerRole ? 'pm' : 'dev'} 
             status={column.id} 
           />
           <Badge variant="secondary">{tasks.length}</Badge>
@@ -364,6 +366,7 @@ export function KanbanBoard({ projectId, onTaskClick }: KanbanBoardProps) {
   const { data: tasks } = useTasks(projectId);
   const updateTask = useUpdateTask();
   const { getColorForStatus, userColors } = useUserKanbanColors(); // Obtener función y datos de colores personalizados
+  const isManagerRole = user?.role === 'admin' || user?.role === 'pm';
   
   // Estado para el diálogo de rechazo
   const [rejectionDialog, setRejectionDialog] = useState<{
@@ -418,7 +421,7 @@ export function KanbanBoard({ projectId, onTaskClick }: KanbanBoardProps) {
     if (!tasks) return {};
 
     // Para Product Manager: agrupar tareas de forma especial
-    if (user?.role === 'pm') {
+    if (isManagerRole) {
       const pmTasks = {
         todo: tasks.filter(t => t.status === 'todo' || t.status === 'in_progress'), // Asignadas (Por hacer + En progreso)
         review: tasks.filter(t => t.status === 'review'), // Por revisar
@@ -446,13 +449,13 @@ export function KanbanBoard({ projectId, onTaskClick }: KanbanBoardProps) {
     }, {} as Record<TaskStatus, Task[]>);
     
     return grouped;
-  }, [tasks, user?.id, user?.role]);
+  }, [tasks, user?.id, isManagerRole]);
 
-  const baseColumns = user?.role === 'pm' ? pmColumns : devColumns;
+  const baseColumns = isManagerRole ? pmColumns : devColumns;
   
   // Mapear las columnas con sus colores configurados
   const columnsWithColors = useMemo(() => {
-    if (user?.role === 'pm') {
+    if (isManagerRole) {
       return baseColumns.map((col) => ({
         ...col,
         color: getColorForStatus('pm', col.id) || 'bg-gray-100',
@@ -463,7 +466,7 @@ export function KanbanBoard({ projectId, onTaskClick }: KanbanBoardProps) {
         color: getColorForStatus('dev', col.id) || 'bg-gray-100',
       }));
     }
-  }, [baseColumns, getColorForStatus, user?.role, userColors]); // Agregar userColors como dependencia
+  }, [baseColumns, getColorForStatus, isManagerRole, userColors]); // Agregar userColors como dependencia
 
   return (
     <div className="flex gap-4 overflow-x-auto py-1 h-[calc(100vh-200px)]">

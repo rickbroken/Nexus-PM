@@ -160,34 +160,23 @@ CREATE POLICY "Users can view agent actions by role"
     );
 
 DROP POLICY IF EXISTS "Users can insert own agent actions" ON public.agent_actions;
-CREATE POLICY "Users can insert own agent actions"
+DROP POLICY IF EXISTS "Service role can insert agent actions" ON public.agent_actions;
+CREATE POLICY "Service role can insert agent actions"
     ON public.agent_actions FOR INSERT
-    WITH CHECK (
-        auth.role() = 'authenticated'
-        AND user_id = auth.uid()
-    );
+    WITH CHECK (auth.role() = 'service_role');
 
 DROP POLICY IF EXISTS "Admins can update agent actions" ON public.agent_actions;
-CREATE POLICY "Admins can update agent actions"
+DROP POLICY IF EXISTS "Service role can update agent actions" ON public.agent_actions;
+CREATE POLICY "Service role can update agent actions"
     ON public.agent_actions FOR UPDATE
-    USING (
-        EXISTS (
-            SELECT 1
-            FROM public.users_profiles up
-            WHERE up.id = auth.uid() AND up.role = 'admin'
-        )
-    );
+    USING (auth.role() = 'service_role')
+    WITH CHECK (auth.role() = 'service_role');
 
 DROP POLICY IF EXISTS "Admins can delete agent actions" ON public.agent_actions;
-CREATE POLICY "Admins can delete agent actions"
+DROP POLICY IF EXISTS "Service role can delete agent actions" ON public.agent_actions;
+CREATE POLICY "Service role can delete agent actions"
     ON public.agent_actions FOR DELETE
-    USING (
-        EXISTS (
-            SELECT 1
-            FROM public.users_profiles up
-            WHERE up.id = auth.uid() AND up.role = 'admin'
-        )
-    );
+    USING (auth.role() = 'service_role');
 
 -- reminders
 DROP POLICY IF EXISTS "Users can view reminders by ownership" ON public.reminders;
@@ -203,18 +192,24 @@ CREATE POLICY "Users can view reminders by ownership"
     );
 
 DROP POLICY IF EXISTS "Users can insert own reminders" ON public.reminders;
-CREATE POLICY "Users can insert own reminders"
+DROP POLICY IF EXISTS "Admins and service role can insert reminders" ON public.reminders;
+CREATE POLICY "Admins and service role can insert reminders"
     ON public.reminders FOR INSERT
     WITH CHECK (
-        auth.role() = 'authenticated'
-        AND user_id = auth.uid()
+        auth.role() = 'service_role'
+        OR EXISTS (
+            SELECT 1
+            FROM public.users_profiles up
+            WHERE up.id = auth.uid() AND up.role = 'admin'
+        )
     );
 
 DROP POLICY IF EXISTS "Users can update own reminders or admins any" ON public.reminders;
-CREATE POLICY "Users can update own reminders or admins any"
+DROP POLICY IF EXISTS "Admins and service role can update reminders" ON public.reminders;
+CREATE POLICY "Admins and service role can update reminders"
     ON public.reminders FOR UPDATE
     USING (
-        user_id = auth.uid()
+        auth.role() = 'service_role'
         OR EXISTS (
             SELECT 1
             FROM public.users_profiles up
@@ -222,7 +217,7 @@ CREATE POLICY "Users can update own reminders or admins any"
         )
     )
     WITH CHECK (
-        user_id = auth.uid()
+        auth.role() = 'service_role'
         OR EXISTS (
             SELECT 1
             FROM public.users_profiles up
@@ -231,10 +226,12 @@ CREATE POLICY "Users can update own reminders or admins any"
     );
 
 DROP POLICY IF EXISTS "Admins can delete reminders" ON public.reminders;
-CREATE POLICY "Admins can delete reminders"
+DROP POLICY IF EXISTS "Admins and service role can delete reminders" ON public.reminders;
+CREATE POLICY "Admins and service role can delete reminders"
     ON public.reminders FOR DELETE
     USING (
-        EXISTS (
+        auth.role() = 'service_role'
+        OR EXISTS (
             SELECT 1
             FROM public.users_profiles up
             WHERE up.id = auth.uid() AND up.role = 'admin'

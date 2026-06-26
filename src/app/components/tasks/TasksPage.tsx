@@ -28,6 +28,7 @@ export function TasksPage() {
   const [viewMode, setViewMode] = useState<ViewMode>('kanban'); // Estado para cambiar entre vistas
   const deleteTask = useDeleteTask();
   const { isLoading } = useTasks(undefined, false); // Solo para el loading inicial
+  const isManagerRole = user?.role === 'admin' || user?.role === 'pm';
 
   // Enable realtime updates
   useTasksRealtime();
@@ -66,9 +67,7 @@ export function TasksPage() {
           // - Dev solo puede ver las que tiene asignadas
           let hasAccess = false;
 
-          if (user.role === 'admin') {
-            hasAccess = true;
-          } else if (user.role === 'pm') {
+          if (user.role === 'admin' || user.role === 'pm') {
             // PM puede ver todas las tareas (ya que gestiona todos los proyectos)
             hasAccess = true;
           } else if (user.role === 'dev') {
@@ -174,7 +173,7 @@ export function TasksPage() {
 
   // Título dinámico según el rol
   const getPageTitle = () => {
-    if (user?.role === 'pm') {
+    if (isManagerRole) {
       return 'Gestión de Tareas';
     } else if (user?.role === 'dev') {
       return 'Mis Tareas Asignadas';
@@ -183,7 +182,7 @@ export function TasksPage() {
   };
 
   const getPageDescription = () => {
-    if (user?.role === 'pm') {
+    if (isManagerRole) {
       return 'Crea y asigna tareas a los desarrolladores del equipo';
     } else if (user?.role === 'dev') {
       return 'Visualiza y actualiza el estado de tus tareas';
@@ -204,7 +203,7 @@ export function TasksPage() {
           </div>
           <Button onClick={handleCreate}>
             <Plus className="mr-2 h-4 w-4" />
-            {user?.role === 'pm' ? 'Asignar Tarea' : 'Nueva Tarea'}
+            {isManagerRole ? 'Asignar Tarea' : 'Nueva Tarea'}
           </Button>
         </div>
         <LoadingSpinner />
@@ -226,7 +225,7 @@ export function TasksPage() {
             </div>
             <div className="flex gap-2">
               {/* Botones para cambiar vista (solo para PM) */}
-              {user?.role === 'pm' && (
+              {isManagerRole && (
                 <>
                   <Button
                     variant={viewMode === 'kanban' ? 'default' : 'outline'}
@@ -252,13 +251,13 @@ export function TasksPage() {
                 disabled={viewMode === 'archived'}
               >
                 <Plus className="mr-2 h-4 w-4" />
-                {user?.role === 'pm' ? 'Asignar Tarea' : 'Nueva Tarea'}
+                {isManagerRole ? 'Asignar Tarea' : 'Nueva Tarea'}
               </Button>
             </div>
           </div>
 
-          {/* Mostrar estadísticas solo para PM y solo en vista Kanban */}
-          {user?.role === 'pm' && viewMode === 'kanban' && <TasksStats />}
+          {/* Mostrar estadísticas solo para roles de gestión y solo en vista Kanban */}
+          {isManagerRole && viewMode === 'kanban' && <TasksStats />}
 
           {/* Renderizar vista según el modo seleccionado */}
           {viewMode === 'kanban' ? (

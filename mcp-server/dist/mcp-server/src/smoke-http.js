@@ -17,6 +17,8 @@ function getMaskedEnvSummary() {
         SUPABASE_SERVICE_ROLE_KEY: '***',
         NEXUS_MCP_ALLOWED_USER_ID: config.NEXUS_MCP_ALLOWED_USER_ID,
         NEXUS_MCP_ALLOWED_ROLE: config.NEXUS_MCP_ALLOWED_ROLE,
+        MCP_HTTP_API_KEY: config.MCP_HTTP_API_KEY ? '***' : '(missing)',
+        NEXUS_MCP_ALLOWED_RPCS: config.NEXUS_MCP_ALLOWED_RPCS,
     };
 }
 function getServerEntryPath() {
@@ -63,7 +65,7 @@ async function waitForHttpReady(url, attempts = 30, intervalMs = 1000) {
     for (let attempt = 0; attempt < attempts; attempt += 1) {
         try {
             const response = await fetch(url, { method: 'GET' });
-            if (response.status === 400 || response.status === 405) {
+            if (response.status === 400 || response.status === 401 || response.status === 405) {
                 return;
             }
         }
@@ -74,12 +76,13 @@ async function waitForHttpReady(url, attempts = 30, intervalMs = 1000) {
     }
     throw new Error(`El endpoint HTTP no respondio en ${url}.`);
 }
-function startServerProcess(port) {
+function startServerProcess(port, apiKey) {
     const child = spawn(process.execPath, [getServerEntryPath()], {
         cwd: getServerCwd(),
         env: {
             ...getProcessEnv(),
             MCP_HTTP_PORT: String(port),
+            MCP_HTTP_API_KEY: apiKey,
         },
         stdio: ['ignore', 'pipe', 'pipe'],
     });
@@ -105,6 +108,7 @@ async function main() {
     const remindAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
     const storagePath = `mcp-smoke/${randomUUID()}.txt`;
     const storageContent = `smoke:${randomUUID()}`;
+    const httpApiKey = config.MCP_HTTP_API_KEY ?? `smoke-http-${randomUUID()}`;
     const serverUrl = `http://${config.MCP_HTTP_HOST}:${smokePort}/mcp`;
     const supabase = createClient(config.SUPABASE_URL, config.SUPABASE_SERVICE_ROLE_KEY, {
         auth: {
@@ -116,9 +120,19 @@ async function main() {
     let isShuttingDown = false;
     console.log('[smoke:http] Starting MCP HTTP smoke test');
     console.log('[smoke:http] Environment:', JSON.stringify(getMaskedEnvSummary()));
-    childProcess = startServerProcess(smokePort);
+    childProcess = startServerProcess(smokePort, httpApiKey);
     await waitForHttpReady(serverUrl);
-    const transport = new StreamableHTTPClientTransport(new URL(serverUrl));
+    const unauthorizedResponse = await fetch(serverUrl, { method: 'GET' });
+    if (unauthorizedResponse.status !== 401) {
+        throw new Error(`Se esperaba 401 sin API key en HTTP y se obtuvo ${unauthorizedResponse.status}.`);
+    }
+    const transport = new StreamableHTTPClientTransport(new URL(serverUrl), {
+        requestInit: {
+            headers: {
+                Authorization: `Bearer ${httpApiKey}`,
+            },
+        },
+    });
     const client = new Client({
         name: 'nexus-pm-http-smoke-client',
         version: '0.1.0',
@@ -187,6 +201,21 @@ async function main() {
             arguments: {},
         }));
         await expectToolFailure(client, 'nexus_db_select', {
+            table: 'project_credentials',
+            limit: 1,
+        }, 'protegida');
+        await expectToolFailure(client, 'nexus_db_insert', {
+            table: 'reminders',
+            data: {
+                title: `[SMOKE HTTP FORGED USER] ${randomUUID()}`,
+                remind_at: remindAt,
+                source: 'agent',
+                status: 'pending',
+                priority: 'medium',
+                user_id: randomUUID(),
+            },
+        }, 'suplantar user_id');
+        await expectToolFailure(client, 'nexus_db_select', {
             table: 'auth.users',
             limit: 1,
         }, 'public');
@@ -205,9 +234,9 @@ async function main() {
             confirm: true,
         }, 'auditoria');
         await expectToolFailure(client, 'nexus_db_rpc', {
-            functionName: 'non_existing_rpc',
+            functionName: 'auto_archive_completed_tasks',
             args: {},
-        }, 'no existe');
+        }, 'NEXUS_MCP_ALLOWED_RPCS');
         const schemaPayload = parseToolJson('nexus_backend_schema', schemaResult);
         const selectPayload = parseToolJson('nexus_db_select', selectResult);
         const updatePayload = parseToolJson('nexus_db_update', updateResult);
@@ -353,6 +382,7 @@ async function main() {
             console.log('[smoke:http] storage write tests: SKIPPED (sin buckets)');
         }
         console.log('[smoke:http] nexus_db_rpc protegido: OK');
+        console.log('[smoke:http] API key HTTP, tablas protegidas y user_id forjado: OK');
         console.log('[smoke:http] Reminder insertado y eliminado:', JSON.stringify({
             id: reminderId,
             title: reminderTitle,

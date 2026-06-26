@@ -11,6 +11,7 @@ const configSchema = z.object({
     MCP_TRANSPORT: z.enum(['http', 'stdio']).default('http'),
     MCP_HTTP_PORT: z.coerce.number().int().positive().default(3333),
     MCP_HTTP_HOST: z.string().min(1, 'MCP_HTTP_HOST es obligatorio').default('127.0.0.1'),
+    MCP_HTTP_API_KEY: z.string().trim().min(1).optional(),
     MCP_ALLOWED_HOSTS: z
         .string()
         .default('127.0.0.1,localhost,*.ngrok-free.app')
@@ -23,6 +24,7 @@ const configSchema = z.object({
     SUPABASE_SERVICE_ROLE_KEY: z.string().min(1, 'SUPABASE_SERVICE_ROLE_KEY es obligatoria'),
     NEXUS_MCP_ALLOWED_USER_ID: z.string().uuid('NEXUS_MCP_ALLOWED_USER_ID debe ser un UUID'),
     NEXUS_MCP_ALLOWED_ROLE: z.enum(['admin', 'pm', 'dev', 'advisor']).default('admin'),
+    NEXUS_MCP_ALLOWED_RPCS: z.string().default('').transform(parseCsvList),
 });
 let cachedConfig = null;
 export function getServerConfig() {

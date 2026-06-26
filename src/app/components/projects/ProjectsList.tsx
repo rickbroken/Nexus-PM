@@ -34,6 +34,12 @@ import {
 } from '../ui/dialog';
 import { format } from 'date-fns';
 import { LoadingSpinner } from '../ui/loading-spinner';
+import {
+  canUseProjectEnvVariables,
+  isProjectEnvVariablesUnsupportedError,
+  markProjectEnvVariablesAvailable,
+  markProjectEnvVariablesUnavailable,
+} from '../../../lib/projectEnvVariables';
 
 interface ProjectsListProps {
   onCreateClick: () => void;
@@ -167,6 +173,11 @@ export function ProjectsList({ onCreateClick, onEditClick }: ProjectsListProps) 
 
   // Cargar variables de entorno del proyecto
   const loadEnvVariables = async (projectIdParam: string) => {
+    if (!canUseProjectEnvVariables()) {
+      setEnvVariables([]);
+      return;
+    }
+
     setLoadingEnvVars(true);
     try {
       // Cargar directamente desde project_env_variables
@@ -177,13 +188,15 @@ export function ProjectsList({ onCreateClick, onEditClick }: ProjectsListProps) 
         .order('key');
 
       if (error) {
-        // Si la tabla no existe, mostrar mensaje silenciosamente
-        if (error.code === 'PGRST205' || error.message.includes('Could not find the table')) {
+        if (isProjectEnvVariablesUnsupportedError(error)) {
+          markProjectEnvVariablesUnavailable();
           setEnvVariables([]);
           return;
         }
         throw error;
       }
+
+      markProjectEnvVariablesAvailable();
 
       // Si es developer, solo mostrar las visibles para devs
       const filteredData = isDeveloper 
@@ -197,7 +210,9 @@ export function ProjectsList({ onCreateClick, onEditClick }: ProjectsListProps) 
       })));
     } catch (error) {
       setEnvVariables([]);
-      toast.error('Error al cargar las variables de entorno');
+      if (!isProjectEnvVariablesUnsupportedError(error)) {
+        toast.error('Error al cargar las variables de entorno');
+      }
     } finally {
       setLoadingEnvVars(false);
     }

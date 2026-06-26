@@ -1,11 +1,21 @@
 import { z } from 'zod';
-export const PROTECTED_WRITE_TABLES = ['agent_actions'];
+export const PROTECTED_READ_TABLES = ['project_credentials'];
+export const PROTECTED_WRITE_TABLES = ['agent_actions', 'project_credentials'];
 export const AUTH_BLOCKED_DB_TABLES = ['auth.users'];
 export const MAX_SELECT_LIMIT = 100;
 export const MAX_SCHEMA_ITEMS = 200;
 export const MAX_STORAGE_LIST_LIMIT = 100;
 export const MAX_STORAGE_DELETE_BATCH = 50;
 export const MAX_AUTH_LIST_PER_PAGE = 100;
+export const DEFAULT_ACTOR_COLUMNS = ['user_id', 'created_by', 'added_by', 'uploaded_by'];
+export const ENFORCED_ACTOR_COLUMNS = [
+    'user_id',
+    'created_by',
+    'added_by',
+    'uploaded_by',
+    'deleted_by',
+    'cancelled_by',
+];
 export const simpleFilterValueSchema = z.union([z.string(), z.number(), z.boolean(), z.null()]);
 export const simpleFiltersSchema = z.record(z.string(), simpleFilterValueSchema);
 export const tableNameSchema = z

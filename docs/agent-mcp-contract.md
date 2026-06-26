@@ -5,6 +5,7 @@
 - El frontend `/agent` es solo lectura y funciona como panel de monitoreo y auditoría.
 - La auditoría obligatoria se registra en `agent_actions`.
 - La capa MCP ya no está limitada al set inicial de herramientas operativas. Ahora expone control backend amplio sobre esquema, tablas públicas, RPCs públicas, Storage y Auth admin.
+- Existe despliegue remoto para el MCP vía `Supabase Edge Functions`, sin dependencia de `localhost` ni `ngrok`.
 
 ## Tools expuestas
 
@@ -22,7 +23,7 @@
 - Input: `{ table, columns?, filters?, orderBy?, limit? }`
 - Output: `{ table, count, rows }`
 - Superficies involucradas: tablas `public.*`.
-- Permisos/seguridad: solo schema `public`; filtros por igualdad exacta; `limit` acotado.
+- Permisos/seguridad: solo schema `public`; filtros por igualdad exacta; `limit` acotado; niega lectura genérica de tablas protegidas como `project_credentials`.
 - Función backend: `mcp-server/src/services/database.service.ts -> selectRows`
 - Estado: operativo.
 
@@ -31,7 +32,7 @@
 - Input: `{ table, data }`
 - Output: `{ table, count, rows }`
 - Superficies involucradas: tablas `public.*`, excepto `agent_actions`.
-- Permisos/seguridad: bloquea escritura genérica sobre `agent_actions`; si la tabla tiene `user_id` y no viene en payload, usa `NEXUS_MCP_ALLOWED_USER_ID`.
+- Permisos/seguridad: bloquea escritura genérica sobre `agent_actions` y `project_credentials`; columnas actoras (`user_id`, `created_by`, etc.) no aceptan suplantación y se rellenan con `NEXUS_MCP_ALLOWED_USER_ID` cuando aplica.
 - Función backend: `mcp-server/src/services/database.service.ts -> insertRow`
 - Estado: operativo.
 
@@ -40,7 +41,7 @@
 - Input: `{ table, filters, data }`
 - Output: `{ table, count, rows }`
 - Superficies involucradas: tablas `public.*`, excepto `agent_actions`.
-- Permisos/seguridad: rechaza updates sin filtros; bloquea escritura genérica sobre `agent_actions`.
+- Permisos/seguridad: rechaza updates sin filtros; bloquea escritura genérica sobre `agent_actions` y `project_credentials`; no permite cambiar columnas actoras a otro usuario.
 - Función backend: `mcp-server/src/services/database.service.ts -> updateRows`
 - Estado: operativo.
 
@@ -49,7 +50,7 @@
 - Input: `{ table, filters, confirm }`
 - Output: `{ table, count, rows }`
 - Superficies involucradas: tablas `public.*` no protegidas.
-- Permisos/seguridad: exige `confirm === true`; exige filtros; bloquea `agent_actions`.
+- Permisos/seguridad: exige `confirm === true`; exige filtros; bloquea tablas protegidas como `agent_actions` y `project_credentials`.
 - Función backend: `mcp-server/src/services/database.service.ts -> deleteRows`
 - Estado: operativo y protegido.
 
@@ -58,7 +59,7 @@
 - Input: `{ functionName, args? }`
 - Output: `{ functionName, data }`
 - Superficies involucradas: funciones `public.*`.
-- Permisos/seguridad: solo schema `public`; no acepta funciones inexistentes.
+- Permisos/seguridad: solo schema `public`; no acepta funciones inexistentes; además exige allowlist explícita en `NEXUS_MCP_ALLOWED_RPCS`.
 - Función backend: `mcp-server/src/services/database.service.ts -> executeRpc`
 - Estado: operativo.
 
@@ -145,11 +146,20 @@
 
 ## Modelo de seguridad
 - `SUPABASE_SERVICE_ROLE_KEY` vive solo en `mcp-server`.
+- El transporte HTTP exige `MCP_HTTP_API_KEY` por `Authorization: Bearer ...` o `x-mcp-api-key`.
 - Las tools genéricas de base de datos operan solo sobre `public.*`.
 - `agent_actions` no acepta escritura genérica; solo desde auditoría interna.
+- `project_credentials` queda fuera de las tools genéricas de lectura/escritura.
+- Las RPC genéricas quedan cerradas salvo allowlist explícita por `NEXUS_MCP_ALLOWED_RPCS`.
+- Las columnas actoras (`user_id`, `created_by`, `added_by`, `uploaded_by`, `deleted_by`, `cancelled_by`) no aceptan suplantación.
 - La introspección de esquema se hace contra `information_schema`.
 - Las operaciones destructivas requieren confirmación explícita cuando aplica.
 - No se imprimen secretos ni stack traces.
+
+## Endpoint remoto
+- URL actual: `https://snhjzofsjitlyscyirov.supabase.co/functions/v1/mcp`
+- Runtime: `Supabase Edge Functions`
+- Auth: API key dedicada para MCP, separada del `anon key`
 
 ## Auditoría obligatoria
 - `user_id = NEXUS_MCP_ALLOWED_USER_ID`
