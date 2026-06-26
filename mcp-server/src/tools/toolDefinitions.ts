@@ -14,6 +14,7 @@ import {
   storageDeleteSchema,
   storageListBucketsSchema,
   storageListObjectsSchema,
+  taskAttachmentDeleteSchema,
   taskAttachmentUploadSchema,
   storageUploadTextSchema,
 } from './toolSchemas.js';
@@ -91,6 +92,12 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
     meta: {
       'openai/fileParams': ['file'],
     },
+  },
+  {
+    name: 'nexus_delete_task_attachment',
+    description:
+      'Elimina un archivo adjunto de una tarea de Nexus-PM borrando metadata y el objeto de Storage. Requiere attachmentId y confirm=true.',
+    inputSchema: z.toJSONSchema(taskAttachmentDeleteSchema),
   },
   {
     name: 'nexus_storage_delete',

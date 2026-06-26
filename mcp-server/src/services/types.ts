@@ -167,6 +167,11 @@ export const taskAttachmentUploadSchema = z
     }
   });
 
+export const taskAttachmentDeleteSchema = z.object({
+  attachmentId: z.string().uuid('attachmentId debe ser un UUID'),
+  confirm: z.boolean(),
+});
+
 export const storageDeleteSchema = z.object({
   bucket: z.string().trim().min(1, 'bucket es obligatorio'),
   paths: z.array(z.string().trim().min(1)).min(1).max(MAX_STORAGE_DELETE_BATCH),
@@ -235,6 +240,7 @@ export type StorageUploadTextInput = z.infer<typeof storageUploadTextSchema>;
 export type OpenAiFileUploadInput = z.infer<typeof openAiFileUploadSchema>;
 export type OpenAiFileIdRefInput = z.infer<typeof openAiFileIdRefSchema>;
 export type TaskAttachmentUploadInput = z.infer<typeof taskAttachmentUploadSchema>;
+export type TaskAttachmentDeleteInput = z.infer<typeof taskAttachmentDeleteSchema>;
 export type StorageDeleteInput = z.infer<typeof storageDeleteSchema>;
 export type AuthListUsersInput = z.infer<typeof authListUsersSchema>;
 export type AuthGetUserInput = z.infer<typeof authGetUserSchema>;
@@ -302,6 +308,16 @@ export interface TaskAttachmentUploadResult {
     fileSize: number;
     mimeType: string;
   }>;
+}
+
+export interface TaskAttachmentDeleteResult {
+  attachmentId: string;
+  taskId: string;
+  bucket: string;
+  fileName: string;
+  filePath: string;
+  storageDeleted: boolean;
+  metadataDeleted: boolean;
 }
 
 export interface StorageDeleteResult {

@@ -12,6 +12,8 @@ import type {
   StorageListObjectsResult,
   StorageUploadTextInput,
   StorageUploadTextResult,
+  TaskAttachmentDeleteInput,
+  TaskAttachmentDeleteResult,
   TaskAttachmentUploadInput,
   TaskAttachmentUploadResult,
 } from './types.js';
@@ -411,6 +413,83 @@ export async function deleteStorageObjects(
       await tryLogAgentFailure(context, {
         action_type: audit.action_type,
         entity_type: 'storage_object',
+        input_text: audit.input_text ?? null,
+        error_message: error instanceof Error ? error.message : 'Error desconocido',
+      });
+    }
+    throw error;
+  }
+}
+
+export async function deleteTaskAttachment(
+  context: AgentServerContext,
+  input: TaskAttachmentDeleteInput,
+  audit: AgentAuditContext
+): Promise<TaskAttachmentDeleteResult> {
+  try {
+    if (input.confirm !== true) {
+      throw new ToolExecutionError('confirm debe ser true para eliminar un adjunto de tarea.');
+    }
+
+    const { data: attachmentRow, error: attachmentError } = await context.supabaseClient
+      .from('task_attachments')
+      .select('id, task_id, file_name, file_path')
+      .eq('id', input.attachmentId)
+      .single();
+
+    if (attachmentError || !attachmentRow) {
+      throw new ToolExecutionError('No se encontro el adjunto solicitado.');
+    }
+
+    let storageDeleted = false;
+    if (attachmentRow.file_path) {
+      const { error: storageError } = await context.supabaseClient.storage
+        .from(TASK_ATTACHMENTS_BUCKET)
+        .remove([attachmentRow.file_path]);
+
+      if (!storageError) {
+        storageDeleted = true;
+      }
+    }
+
+    const { error: deleteError } = await context.supabaseClient
+      .from('task_attachments')
+      .delete()
+      .eq('id', input.attachmentId);
+
+    if (deleteError) {
+      throw new ToolExecutionError(deleteError.message);
+    }
+
+    const result: TaskAttachmentDeleteResult = {
+      attachmentId: attachmentRow.id,
+      taskId: attachmentRow.task_id,
+      bucket: TASK_ATTACHMENTS_BUCKET,
+      fileName: attachmentRow.file_name,
+      filePath: attachmentRow.file_path,
+      storageDeleted,
+      metadataDeleted: true,
+    };
+
+    if (audit.enabled) {
+      await logAgentAction(context, {
+        action_type: audit.action_type,
+        entity_type: 'task_attachment',
+        entity_id: attachmentRow.id,
+        task_id: attachmentRow.task_id,
+        input_text: audit.input_text ?? null,
+        result,
+        status: 'success',
+      });
+    }
+
+    return result;
+  } catch (error) {
+    if (audit.enabled) {
+      await tryLogAgentFailure(context, {
+        action_type: audit.action_type,
+        entity_type: 'task_attachment',
+        entity_id: input.attachmentId,
         input_text: audit.input_text ?? null,
         error_message: error instanceof Error ? error.message : 'Error desconocido',
       });

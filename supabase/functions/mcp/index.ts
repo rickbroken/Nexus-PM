@@ -96,6 +96,16 @@ type TaskAttachmentUploadResult = {
   }>;
 };
 
+type TaskAttachmentDeleteResult = {
+  attachmentId: string;
+  taskId: string;
+  bucket: string;
+  fileName: string;
+  filePath: string;
+  storageDeleted: boolean;
+  metadataDeleted: boolean;
+};
+
 type StorageDeleteResult = {
   bucket: string;
   deletedCount: number;
@@ -386,6 +396,11 @@ const taskAttachmentUploadSchema = z
     }
   });
 
+const taskAttachmentDeleteSchema = z.object({
+  attachmentId: z.string().uuid("attachmentId debe ser un UUID"),
+  confirm: z.boolean(),
+});
+
 const storageDeleteSchema = z.object({
   bucket: z.string().trim().min(1, "bucket es obligatorio"),
   paths: z.array(z.string().trim().min(1)).min(1).max(MAX_STORAGE_DELETE_BATCH),
@@ -454,6 +469,7 @@ type StorageUploadTextInput = z.infer<typeof storageUploadTextSchema>;
 type OpenAiFileUploadInput = z.infer<typeof openAiFileUploadSchema>;
 type OpenAiFileIdRefInput = z.infer<typeof openAiFileIdRefSchema>;
 type TaskAttachmentUploadInput = z.infer<typeof taskAttachmentUploadSchema>;
+type TaskAttachmentDeleteInput = z.infer<typeof taskAttachmentDeleteSchema>;
 type StorageDeleteInput = z.infer<typeof storageDeleteSchema>;
 type AuthListUsersInput = z.infer<typeof authListUsersSchema>;
 type AuthGetUserInput = z.infer<typeof authGetUserSchema>;
@@ -1330,6 +1346,64 @@ async function uploadTaskAttachment(
   }
 }
 
+async function deleteTaskAttachment(
+  context: AgentServerContext,
+  input: TaskAttachmentDeleteInput,
+  audit: AgentAuditContext
+): Promise<TaskAttachmentDeleteResult> {
+  try {
+    if (input.confirm !== true) {
+      throw new ToolExecutionError("confirm debe ser true para eliminar un adjunto de tarea.");
+    }
+
+    const { data: attachmentRow, error: attachmentError } = await context.supabaseClient
+      .from("task_attachments")
+      .select("id, task_id, file_name, file_path")
+      .eq("id", input.attachmentId)
+      .single();
+
+    if (attachmentError || !attachmentRow) {
+      throw new ToolExecutionError("No se encontro el adjunto solicitado.");
+    }
+
+    let storageDeleted = false;
+    if (attachmentRow.file_path) {
+      const { error: storageError } = await context.supabaseClient.storage
+        .from(TASK_ATTACHMENTS_BUCKET)
+        .remove([attachmentRow.file_path]);
+
+      if (!storageError) {
+        storageDeleted = true;
+      }
+    }
+
+    const { error: deleteError } = await context.supabaseClient
+      .from("task_attachments")
+      .delete()
+      .eq("id", input.attachmentId);
+
+    if (deleteError) {
+      throw new ToolExecutionError(deleteError.message);
+    }
+
+    const result: TaskAttachmentDeleteResult = {
+      attachmentId: attachmentRow.id,
+      taskId: attachmentRow.task_id,
+      bucket: TASK_ATTACHMENTS_BUCKET,
+      fileName: attachmentRow.file_name,
+      filePath: attachmentRow.file_path,
+      storageDeleted,
+      metadataDeleted: true,
+    };
+
+    await auditSuccess(context, audit, result);
+    return result;
+  } catch (error) {
+    await auditFailure(context, audit, error);
+    throw error;
+  }
+}
+
 async function deleteStorageObjects(
   context: AgentServerContext,
   input: StorageDeleteInput,
@@ -1573,6 +1647,16 @@ const mcpToolHandlers = {
       input_text: "mcp:nexus_attach_file_to_task",
     });
   },
+  nexus_delete_task_attachment: async ({ context, input }: McpToolHandlerInput) => {
+    const parsed = taskAttachmentDeleteSchema.parse(input);
+    return deleteTaskAttachment(context, parsed, {
+      enabled: true,
+      action_type: "nexus_delete_task_attachment",
+      entity_type: "task_attachment",
+      entity_id: parsed.attachmentId,
+      input_text: "mcp:nexus_delete_task_attachment",
+    });
+  },
   nexus_storage_delete: async ({ context, input }: McpToolHandlerInput) =>
     deleteStorageObjects(context, storageDeleteSchema.parse(input), {
       enabled: true,
@@ -1692,6 +1776,12 @@ const mcpToolDefinitions = [
     _meta: {
       "openai/fileParams": ["file"],
     },
+  },
+  {
+    name: "nexus_delete_task_attachment",
+    description:
+      "Elimina un archivo adjunto de una tarea de Nexus-PM borrando metadata y el objeto de Storage. Requiere attachmentId y confirm=true.",
+    inputSchema: taskAttachmentDeleteSchema,
   },
   {
     name: "nexus_storage_delete",
