@@ -7,6 +7,7 @@ export const MAX_SCHEMA_ITEMS = 200;
 export const MAX_STORAGE_LIST_LIMIT = 100;
 export const MAX_STORAGE_DELETE_BATCH = 50;
 export const MAX_AUTH_LIST_PER_PAGE = 100;
+export const MAX_TASK_ATTACHMENT_BYTES = 10 * 1024 * 1024;
 export const DEFAULT_ACTOR_COLUMNS = ['user_id', 'created_by', 'added_by', 'uploaded_by'];
 export const ENFORCED_ACTOR_COLUMNS = [
     'user_id',
@@ -64,6 +65,13 @@ export const storageUploadTextSchema = z.object({
     content: z.string(),
     contentType: z.string().trim().optional(),
     upsert: z.boolean().optional().default(true),
+});
+export const taskAttachmentUploadSchema = z.object({
+    taskId: z.string().uuid('taskId debe ser un UUID'),
+    fileName: z.string().trim().min(1, 'fileName es obligatorio'),
+    fileBase64: z.string().trim().min(1, 'fileBase64 es obligatorio'),
+    mimeType: z.string().trim().min(1, 'mimeType es obligatorio'),
+    upsert: z.boolean().optional().default(false),
 });
 export const storageDeleteSchema = z.object({
     bucket: z.string().trim().min(1, 'bucket es obligatorio'),

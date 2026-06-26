@@ -77,6 +77,16 @@ type StorageUploadTextResult = {
   contentType: string;
 };
 
+type TaskAttachmentUploadResult = {
+  attachmentId: string;
+  taskId: string;
+  bucket: string;
+  fileName: string;
+  filePath: string;
+  fileSize: number;
+  mimeType: string;
+};
+
 type StorageDeleteResult = {
   bucket: string;
   deletedCount: number;
@@ -109,8 +119,10 @@ const MAX_SELECT_LIMIT = 100;
 const MAX_STORAGE_LIST_LIMIT = 100;
 const MAX_STORAGE_DELETE_BATCH = 50;
 const MAX_AUTH_LIST_PER_PAGE = 100;
+const MAX_TASK_ATTACHMENT_BYTES = 10 * 1024 * 1024;
 const MCP_BASE_PATH = "/functions/v1/mcp";
 const OAUTH_PROTECTED_RESOURCE_FUNCTION_PATH = "/functions/v1/mcp-oauth-protected-resource";
+const TASK_ATTACHMENTS_BUCKET = "task-attachments";
 
 class InvalidConfigurationError extends Error {
   constructor(message: string) {
@@ -304,6 +316,57 @@ const storageUploadTextSchema = z.object({
   upsert: z.boolean().optional().default(true),
 });
 
+const openAiFileUploadSchema = z.object({
+  download_url: z.string().url("file.download_url debe ser una URL valida"),
+  file_id: z.string().trim().min(1).optional(),
+  mime_type: z.string().trim().min(1).optional(),
+  file_name: z.string().trim().min(1).optional(),
+});
+
+const taskAttachmentUploadSchema = z
+  .object({
+    taskId: z.string().uuid("taskId debe ser un UUID"),
+    file: openAiFileUploadSchema.optional(),
+    fileName: z.string().trim().min(1).optional(),
+    fileBase64: z.string().trim().min(1).optional(),
+    mimeType: z.string().trim().min(1).optional(),
+    upsert: z.boolean().optional().default(false),
+  })
+  .superRefine((input, ctx) => {
+    const hasFileParam = Boolean(input.file);
+    const hasBase64 = Boolean(input.fileBase64);
+
+    if (!hasFileParam && !hasBase64) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Debes enviar file o fileBase64.",
+      });
+    }
+
+    if (hasFileParam && hasBase64) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Usa file o fileBase64, no ambos al mismo tiempo.",
+      });
+    }
+
+    if (hasBase64 && !input.fileName) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "fileName es obligatorio cuando usas fileBase64.",
+        path: ["fileName"],
+      });
+    }
+
+    if (hasBase64 && !input.mimeType) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "mimeType es obligatorio cuando usas fileBase64.",
+        path: ["mimeType"],
+      });
+    }
+  });
+
 const storageDeleteSchema = z.object({
   bucket: z.string().trim().min(1, "bucket es obligatorio"),
   paths: z.array(z.string().trim().min(1)).min(1).max(MAX_STORAGE_DELETE_BATCH),
@@ -369,6 +432,8 @@ type BackendSchemaInput = z.infer<typeof backendSchemaSchema>;
 type StorageListBucketsInput = z.infer<typeof storageListBucketsSchema>;
 type StorageListObjectsInput = z.infer<typeof storageListObjectsSchema>;
 type StorageUploadTextInput = z.infer<typeof storageUploadTextSchema>;
+type OpenAiFileUploadInput = z.infer<typeof openAiFileUploadSchema>;
+type TaskAttachmentUploadInput = z.infer<typeof taskAttachmentUploadSchema>;
 type StorageDeleteInput = z.infer<typeof storageDeleteSchema>;
 type AuthListUsersInput = z.infer<typeof authListUsersSchema>;
 type AuthGetUserInput = z.infer<typeof authGetUserSchema>;
@@ -1034,6 +1099,175 @@ async function uploadStorageText(
   }
 }
 
+function decodeBase64Payload(base64Payload: string) {
+  const normalized = base64Payload.includes(",")
+    ? base64Payload.slice(base64Payload.indexOf(",") + 1)
+    : base64Payload;
+
+  try {
+    const binary = atob(normalized);
+    const bytes = new Uint8Array(binary.length);
+    for (let index = 0; index < binary.length; index += 1) {
+      bytes[index] = binary.charCodeAt(index);
+    }
+    return bytes;
+  } catch {
+    throw new ToolExecutionError("fileBase64 no tiene un formato base64 valido.");
+  }
+}
+
+function sanitizeAttachmentFileName(fileName: string) {
+  return fileName.replace(/[^\w.\-]+/g, "_");
+}
+
+function inferDownloadFileName(downloadUrl: string) {
+  try {
+    const pathname = new URL(downloadUrl).pathname;
+    const rawName = pathname.split("/").pop();
+    return rawName ? decodeURIComponent(rawName) : "attachment.bin";
+  } catch {
+    return "attachment.bin";
+  }
+}
+
+async function resolveTaskAttachmentSource(
+  input: TaskAttachmentUploadInput
+): Promise<{ fileBytes: Uint8Array; fileName: string; mimeType: string }> {
+  if (input.fileBase64) {
+    return {
+      fileBytes: decodeBase64Payload(input.fileBase64),
+      fileName: input.fileName ?? "attachment.bin",
+      mimeType: input.mimeType ?? "application/octet-stream",
+    };
+  }
+
+  const fileRef = input.file as OpenAiFileUploadInput | undefined;
+  if (!fileRef?.download_url) {
+    throw new ToolExecutionError("Debes enviar file o fileBase64 para adjuntar a la tarea.");
+  }
+
+  const response = await fetch(fileRef.download_url);
+  if (!response.ok) {
+    throw new ToolExecutionError(`No se pudo descargar el archivo adjunto (${response.status}).`);
+  }
+
+  const arrayBuffer = await response.arrayBuffer();
+  const fileBytes = new Uint8Array(arrayBuffer);
+  const mimeType =
+    input.mimeType ??
+    fileRef.mime_type ??
+    response.headers.get("content-type")?.split(";")[0]?.trim() ??
+    "application/octet-stream";
+  const fileName =
+    input.fileName ??
+    fileRef.file_name ??
+    inferDownloadFileName(fileRef.download_url);
+
+  return {
+    fileBytes,
+    fileName,
+    mimeType,
+  };
+}
+
+async function uploadTaskAttachment(
+  context: AgentServerContext,
+  input: TaskAttachmentUploadInput,
+  audit: AgentAuditContext
+): Promise<TaskAttachmentUploadResult> {
+  const { fileBytes, fileName, mimeType } = await resolveTaskAttachmentSource(input);
+  const fileSize = fileBytes.byteLength;
+
+  if (fileSize < 1) {
+    throw new ToolExecutionError("El archivo adjunto esta vacio.");
+  }
+
+  if (fileSize > MAX_TASK_ATTACHMENT_BYTES) {
+    throw new ToolExecutionError("El archivo adjunto excede el maximo permitido de 10MB.");
+  }
+
+  const safeFileName = sanitizeAttachmentFileName(fileName);
+  const filePath = `${input.taskId}/${Date.now()}-${crypto.randomUUID()}-${safeFileName}`;
+
+  try {
+    const { error: uploadError } = await context.supabaseClient.storage
+      .from(TASK_ATTACHMENTS_BUCKET)
+      .upload(filePath, fileBytes, {
+        contentType: mimeType,
+        upsert: input.upsert ?? false,
+      });
+
+    if (uploadError) {
+      throw new ToolExecutionError(uploadError.message);
+    }
+
+    const uploaderIsManager = context.userRole === "admin" || context.userRole === "pm";
+    const uploaderIsDev = context.userRole === "dev";
+
+    const { data: attachmentRow, error: attachmentError } = await context.supabaseClient
+      .from("task_attachments")
+      .insert({
+        task_id: input.taskId,
+        file_name: fileName,
+        file_path: filePath,
+        file_size: fileSize,
+        file_type: mimeType,
+        uploaded_by: context.userId,
+        viewed_by_pm: uploaderIsManager,
+        viewed_by_dev: uploaderIsDev,
+      })
+      .select("id")
+      .single();
+
+    if (attachmentError || !attachmentRow) {
+      await context.supabaseClient.storage.from(TASK_ATTACHMENTS_BUCKET).remove([filePath]);
+      throw new ToolExecutionError(attachmentError?.message ?? "No se pudo guardar el adjunto.");
+    }
+
+    const taskUpdates: Record<string, unknown> = {
+      last_attachment_by: context.userId,
+      last_attachment_at: new Date().toISOString(),
+    };
+
+    if (uploaderIsDev) {
+      taskUpdates.has_new_attachments_for_pm = true;
+    } else if (uploaderIsManager) {
+      taskUpdates.has_new_attachments_for_dev = true;
+    }
+
+    const { error: taskUpdateError } = await context.supabaseClient
+      .from("tasks")
+      .update(taskUpdates)
+      .eq("id", input.taskId);
+
+    if (taskUpdateError) {
+      throw new ToolExecutionError(taskUpdateError.message);
+    }
+
+    await auditSuccess(context, audit, {
+      attachmentId: attachmentRow.id,
+      bucket: TASK_ATTACHMENTS_BUCKET,
+      fileName,
+      filePath,
+      fileSize,
+      mimeType,
+    });
+
+    return {
+      attachmentId: attachmentRow.id,
+      taskId: input.taskId,
+      bucket: TASK_ATTACHMENTS_BUCKET,
+      fileName,
+      filePath,
+      fileSize,
+      mimeType,
+    };
+  } catch (error) {
+    await auditFailure(context, audit, error);
+    throw error;
+  }
+}
+
 async function deleteStorageObjects(
   context: AgentServerContext,
   input: StorageDeleteInput,
@@ -1257,6 +1491,16 @@ const mcpToolHandlers = {
       entity_type: "storage_object",
       input_text: "mcp:nexus_storage_upload_text",
     }),
+  nexus_task_attachment_upload: async ({ context, input }: McpToolHandlerInput) => {
+    const parsed = taskAttachmentUploadSchema.parse(input);
+    return uploadTaskAttachment(context, parsed, {
+      enabled: true,
+      action_type: "nexus_task_attachment_upload",
+      entity_type: "task_attachment",
+      task_id: parsed.taskId,
+      input_text: "mcp:nexus_task_attachment_upload",
+    });
+  },
   nexus_storage_delete: async ({ context, input }: McpToolHandlerInput) =>
     deleteStorageObjects(context, storageDeleteSchema.parse(input), {
       enabled: true,
@@ -1357,6 +1601,15 @@ const mcpToolDefinitions = [
     inputSchema: storageUploadTextSchema,
   },
   {
+    name: "nexus_task_attachment_upload",
+    description:
+      "Adjunta una imagen o archivo a una tarea usando file param de ChatGPT o base64, guardando Storage y metadata en task_attachments.",
+    inputSchema: taskAttachmentUploadSchema,
+    _meta: {
+      "openai/fileParams": ["file"],
+    },
+  },
+  {
     name: "nexus_storage_delete",
     description: "Elimina objetos de Storage solo con confirmacion explicita.",
     inputSchema: storageDeleteSchema,
@@ -1421,6 +1674,7 @@ function createNexusMcpServer(identity?: AuthenticatedIdentity) {
       {
         description: tool.description,
         inputSchema: tool.inputSchema,
+        _meta: tool._meta,
       } as any,
       async (input: Record<string, unknown>) => {
         const result = await dispatchTool(tool.name, input, identity);

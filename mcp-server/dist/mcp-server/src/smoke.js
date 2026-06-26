@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import { Buffer } from 'node:buffer';
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
@@ -59,9 +60,11 @@ async function main() {
     const config = getServerConfig();
     const reminderTitle = `[SMOKE MCP] ${randomUUID()}`;
     const updatedReminderDescription = `[SMOKE UPDATE] ${randomUUID()}`;
+    const taskTitle = `[SMOKE ATTACHMENT TASK] ${randomUUID()}`;
     const remindAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
     const storagePath = `mcp-smoke/${randomUUID()}.txt`;
     const storageContent = `smoke:${randomUUID()}`;
+    const attachmentContent = Buffer.from(`attachment:${randomUUID()}`, 'utf8').toString('base64');
     const serverEntry = getServerEntryPath();
     const supabase = createClient(config.SUPABASE_URL, config.SUPABASE_SERVICE_ROLE_KEY, {
         auth: {
@@ -236,6 +239,108 @@ async function main() {
                 throw new Error('Las tools de storage no devolvieron el resultado esperado.');
             }
         }
+        let attachmentTaskId = null;
+        let attachmentPath = null;
+        let attachmentId = null;
+        const { data: firstProjectRow, error: firstProjectError } = await supabase
+            .from('projects')
+            .select('id')
+            .limit(1)
+            .maybeSingle();
+        if (firstProjectError)
+            throw firstProjectError;
+        if (firstProjectRow?.id) {
+            const taskInsertResult = (await client.callTool({
+                name: 'nexus_db_insert',
+                arguments: {
+                    table: 'tasks',
+                    data: {
+                        project_id: firstProjectRow.id,
+                        title: taskTitle,
+                        status: 'todo',
+                        priority: 'medium',
+                    },
+                },
+            }));
+            const insertedTaskPayload = parseToolJson('nexus_db_insert', taskInsertResult);
+            attachmentTaskId = insertedTaskPayload.rows[0]?.id ?? null;
+            if (!attachmentTaskId) {
+                throw new Error('No se obtuvo el id de la tarea temporal para probar adjuntos.');
+            }
+            const attachmentUploadResult = (await client.callTool({
+                name: 'nexus_task_attachment_upload',
+                arguments: {
+                    taskId: attachmentTaskId,
+                    fileName: 'smoke-attachment.txt',
+                    fileBase64: attachmentContent,
+                    mimeType: 'text/plain',
+                },
+            }));
+            const attachmentPayload = parseToolJson('nexus_task_attachment_upload', attachmentUploadResult);
+            attachmentId = attachmentPayload.attachmentId;
+            attachmentPath = attachmentPayload.filePath;
+            if (attachmentPayload.taskId !== attachmentTaskId ||
+                attachmentPayload.bucket !== 'task-attachments' ||
+                attachmentPayload.fileSize < 1) {
+                throw new Error('La tool de adjuntos no devolvio el payload esperado.');
+            }
+            const { data: attachmentRow, error: attachmentError } = await supabase
+                .from('task_attachments')
+                .select('id, task_id, file_path, uploaded_by')
+                .eq('id', attachmentId)
+                .maybeSingle();
+            if (attachmentError)
+                throw attachmentError;
+            if (!attachmentRow || attachmentRow.task_id !== attachmentTaskId || attachmentRow.file_path !== attachmentPath) {
+                throw new Error('No se encontro el metadata del adjunto creado por MCP.');
+            }
+            const { data: taskFlagsRow, error: taskFlagsError } = await supabase
+                .from('tasks')
+                .select('last_attachment_by, last_attachment_at, has_new_attachments_for_dev')
+                .eq('id', attachmentTaskId)
+                .maybeSingle();
+            if (taskFlagsError)
+                throw taskFlagsError;
+            if (!taskFlagsRow?.last_attachment_by || !taskFlagsRow?.last_attachment_at) {
+                throw new Error('La tarea temporal no actualizo los flags de adjunto.');
+            }
+            const attachmentDeleteResult = (await client.callTool({
+                name: 'nexus_storage_delete',
+                arguments: {
+                    bucket: 'task-attachments',
+                    paths: [attachmentPath],
+                    confirm: true,
+                },
+            }));
+            const attachmentDeletePayload = parseToolJson('nexus_storage_delete', attachmentDeleteResult);
+            if (attachmentDeletePayload.deletedCount < 1) {
+                throw new Error('No se pudo eliminar el archivo temporal de adjunto en storage.');
+            }
+            const taskDeleteResult = (await client.callTool({
+                name: 'nexus_db_delete',
+                arguments: {
+                    table: 'tasks',
+                    filters: {
+                        id: attachmentTaskId,
+                    },
+                    confirm: true,
+                },
+            }));
+            const taskDeletePayload = parseToolJson('nexus_db_delete', taskDeleteResult);
+            if (taskDeletePayload.count !== 1) {
+                throw new Error('No se pudo eliminar la tarea temporal del smoke de adjuntos.');
+            }
+            const { data: deletedAttachmentRow, error: deletedAttachmentError } = await supabase
+                .from('task_attachments')
+                .select('id')
+                .eq('id', attachmentId)
+                .maybeSingle();
+            if (deletedAttachmentError)
+                throw deletedAttachmentError;
+            if (deletedAttachmentRow) {
+                throw new Error('El metadata del adjunto temporal no fue eliminado por cascade.');
+            }
+        }
         const deleteSuccessResult = (await client.callTool({
             name: 'nexus_db_delete',
             arguments: {
@@ -278,6 +383,9 @@ async function main() {
         if (storageBucketName) {
             actionTypes.push('nexus_storage_upload_text', 'nexus_storage_list_objects', 'nexus_storage_delete');
         }
+        if (attachmentTaskId) {
+            actionTypes.push('nexus_task_attachment_upload');
+        }
         const { data: actionRows, error: actionError } = await supabase
             .from('agent_actions')
             .select('action_type, input_text, status, user_id, created_at')
@@ -298,6 +406,9 @@ async function main() {
         ];
         if (storageBucketName) {
             requiredAudits.push('nexus_storage_upload_text', 'nexus_storage_list_objects', 'nexus_storage_delete');
+        }
+        if (attachmentTaskId) {
+            requiredAudits.push('nexus_task_attachment_upload');
         }
         for (const actionType of requiredAudits) {
             const hasAudit = (actionRows ?? []).some((row) => row.action_type === actionType && row.input_text === `mcp:${actionType}` && row.status === 'success');
@@ -328,6 +439,12 @@ async function main() {
         }
         else {
             console.log('[smoke] storage write tests: SKIPPED (sin buckets)');
+        }
+        if (attachmentTaskId) {
+            console.log('[smoke] nexus_task_attachment_upload: OK');
+        }
+        else {
+            console.log('[smoke] task attachment test: SKIPPED (sin proyectos)');
         }
         console.log('[smoke] nexus_db_rpc protegido: OK');
         console.log('[smoke] bloqueo de tablas protegidas y user_id forjado: OK');

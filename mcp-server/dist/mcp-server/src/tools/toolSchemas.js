@@ -1,5 +1,5 @@
-import { authCreateUserSchema, authDeleteUserSchema, authGetUserSchema, authListUsersSchema, authUpdateUserSchema, backendSchemaSchema, dbDeleteSchema, dbInsertSchema, dbRpcSchema, dbSelectSchema, dbUpdateSchema, storageDeleteSchema, storageListBucketsSchema, storageListObjectsSchema, storageUploadTextSchema, } from '../services/types.js';
-export { authCreateUserSchema, authDeleteUserSchema, authGetUserSchema, authListUsersSchema, authUpdateUserSchema, backendSchemaSchema, dbDeleteSchema, dbInsertSchema, dbRpcSchema, dbSelectSchema, dbUpdateSchema, storageDeleteSchema, storageListBucketsSchema, storageListObjectsSchema, storageUploadTextSchema, };
+import { authCreateUserSchema, authDeleteUserSchema, authGetUserSchema, authListUsersSchema, authUpdateUserSchema, backendSchemaSchema, dbDeleteSchema, dbInsertSchema, dbRpcSchema, dbSelectSchema, dbUpdateSchema, storageDeleteSchema, storageListBucketsSchema, storageListObjectsSchema, taskAttachmentUploadSchema, storageUploadTextSchema, } from '../services/types.js';
+export { authCreateUserSchema, authDeleteUserSchema, authGetUserSchema, authListUsersSchema, authUpdateUserSchema, backendSchemaSchema, dbDeleteSchema, dbInsertSchema, dbRpcSchema, dbSelectSchema, dbUpdateSchema, storageDeleteSchema, storageListBucketsSchema, storageListObjectsSchema, taskAttachmentUploadSchema, storageUploadTextSchema, };
 export const mcpToolRuntimeSchemas = {
     nexus_backend_schema: backendSchemaSchema,
     nexus_db_select: dbSelectSchema,
@@ -10,6 +10,7 @@ export const mcpToolRuntimeSchemas = {
     nexus_storage_list_buckets: storageListBucketsSchema,
     nexus_storage_list_objects: storageListObjectsSchema,
     nexus_storage_upload_text: storageUploadTextSchema,
+    nexus_task_attachment_upload: taskAttachmentUploadSchema,
     nexus_storage_delete: storageDeleteSchema,
     nexus_auth_list_users: authListUsersSchema,
     nexus_auth_get_user: authGetUserSchema,

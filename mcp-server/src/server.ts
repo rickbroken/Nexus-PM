@@ -14,6 +14,7 @@ export function createNexusMcpServer() {
     const toolConfig = {
       description: tool.description,
       inputSchema: runtimeSchema.shape,
+      _meta: tool.meta,
     } as any;
 
     server.registerTool(tool.name, toolConfig, async (input: Record<string, unknown>) => {

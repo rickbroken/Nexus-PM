@@ -19,6 +19,7 @@ export const MAX_SCHEMA_ITEMS = 200;
 export const MAX_STORAGE_LIST_LIMIT = 100;
 export const MAX_STORAGE_DELETE_BATCH = 50;
 export const MAX_AUTH_LIST_PER_PAGE = 100;
+export const MAX_TASK_ATTACHMENT_BYTES = 10 * 1024 * 1024;
 export const DEFAULT_ACTOR_COLUMNS = ['user_id', 'created_by', 'added_by', 'uploaded_by'] as const;
 export const ENFORCED_ACTOR_COLUMNS = [
   'user_id',
@@ -105,6 +106,57 @@ export const storageUploadTextSchema = z.object({
   upsert: z.boolean().optional().default(true),
 });
 
+export const openAiFileUploadSchema = z.object({
+  download_url: z.string().url('file.download_url debe ser una URL valida'),
+  file_id: z.string().trim().min(1).optional(),
+  mime_type: z.string().trim().min(1).optional(),
+  file_name: z.string().trim().min(1).optional(),
+});
+
+export const taskAttachmentUploadSchema = z
+  .object({
+    taskId: z.string().uuid('taskId debe ser un UUID'),
+    file: openAiFileUploadSchema.optional(),
+    fileName: z.string().trim().min(1).optional(),
+    fileBase64: z.string().trim().min(1).optional(),
+    mimeType: z.string().trim().min(1).optional(),
+    upsert: z.boolean().optional().default(false),
+  })
+  .superRefine((input, ctx) => {
+    const hasFileParam = Boolean(input.file);
+    const hasBase64 = Boolean(input.fileBase64);
+
+    if (!hasFileParam && !hasBase64) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Debes enviar file o fileBase64.',
+      });
+    }
+
+    if (hasFileParam && hasBase64) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Usa file o fileBase64, no ambos al mismo tiempo.',
+      });
+    }
+
+    if (hasBase64 && !input.fileName) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'fileName es obligatorio cuando usas fileBase64.',
+        path: ['fileName'],
+      });
+    }
+
+    if (hasBase64 && !input.mimeType) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'mimeType es obligatorio cuando usas fileBase64.',
+        path: ['mimeType'],
+      });
+    }
+  });
+
 export const storageDeleteSchema = z.object({
   bucket: z.string().trim().min(1, 'bucket es obligatorio'),
   paths: z.array(z.string().trim().min(1)).min(1).max(MAX_STORAGE_DELETE_BATCH),
@@ -170,6 +222,8 @@ export type BackendSchemaInput = z.infer<typeof backendSchemaSchema>;
 export type StorageListBucketsInput = z.infer<typeof storageListBucketsSchema>;
 export type StorageListObjectsInput = z.infer<typeof storageListObjectsSchema>;
 export type StorageUploadTextInput = z.infer<typeof storageUploadTextSchema>;
+export type OpenAiFileUploadInput = z.infer<typeof openAiFileUploadSchema>;
+export type TaskAttachmentUploadInput = z.infer<typeof taskAttachmentUploadSchema>;
 export type StorageDeleteInput = z.infer<typeof storageDeleteSchema>;
 export type AuthListUsersInput = z.infer<typeof authListUsersSchema>;
 export type AuthGetUserInput = z.infer<typeof authGetUserSchema>;
@@ -218,6 +272,16 @@ export interface StorageUploadTextResult {
   bucket: string;
   path: string;
   contentType: string;
+}
+
+export interface TaskAttachmentUploadResult {
+  attachmentId: string;
+  taskId: string;
+  bucket: string;
+  fileName: string;
+  filePath: string;
+  fileSize: number;
+  mimeType: string;
 }
 
 export interface StorageDeleteResult {

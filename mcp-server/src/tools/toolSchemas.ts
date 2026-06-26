@@ -14,6 +14,7 @@ import {
   storageDeleteSchema,
   storageListBucketsSchema,
   storageListObjectsSchema,
+  taskAttachmentUploadSchema,
   storageUploadTextSchema,
 } from '../services/types.js';
 
@@ -32,6 +33,7 @@ export {
   storageDeleteSchema,
   storageListBucketsSchema,
   storageListObjectsSchema,
+  taskAttachmentUploadSchema,
   storageUploadTextSchema,
 };
 
@@ -45,6 +47,7 @@ export const mcpToolRuntimeSchemas = {
   nexus_storage_list_buckets: storageListBucketsSchema,
   nexus_storage_list_objects: storageListObjectsSchema,
   nexus_storage_upload_text: storageUploadTextSchema,
+  nexus_task_attachment_upload: taskAttachmentUploadSchema,
   nexus_storage_delete: storageDeleteSchema,
   nexus_auth_list_users: authListUsersSchema,
   nexus_auth_get_user: authGetUserSchema,

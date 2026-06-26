@@ -14,6 +14,7 @@ import {
   storageDeleteSchema,
   storageListBucketsSchema,
   storageListObjectsSchema,
+  taskAttachmentUploadSchema,
   storageUploadTextSchema,
 } from './toolSchemas.js';
 
@@ -21,6 +22,7 @@ export type McpToolDefinition = {
   name: string;
   description: string;
   inputSchema: Record<string, unknown>;
+  meta?: Record<string, unknown>;
 };
 
 export const mcpToolDefinitions: McpToolDefinition[] = [
@@ -68,6 +70,15 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
     name: 'nexus_storage_upload_text',
     description: 'Crea o reemplaza un archivo de texto en Supabase Storage.',
     inputSchema: z.toJSONSchema(storageUploadTextSchema),
+  },
+  {
+    name: 'nexus_task_attachment_upload',
+    description:
+      'Adjunta una imagen o archivo a una tarea usando file param de ChatGPT o base64, guardando Storage y metadata en task_attachments.',
+    inputSchema: z.toJSONSchema(taskAttachmentUploadSchema),
+    meta: {
+      'openai/fileParams': ['file'],
+    },
   },
   {
     name: 'nexus_storage_delete',

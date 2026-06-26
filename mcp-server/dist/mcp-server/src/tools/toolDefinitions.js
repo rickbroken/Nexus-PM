@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { authCreateUserSchema, authDeleteUserSchema, authGetUserSchema, authListUsersSchema, authUpdateUserSchema, backendSchemaSchema, dbDeleteSchema, dbInsertSchema, dbRpcSchema, dbSelectSchema, dbUpdateSchema, storageDeleteSchema, storageListBucketsSchema, storageListObjectsSchema, storageUploadTextSchema, } from './toolSchemas.js';
+import { authCreateUserSchema, authDeleteUserSchema, authGetUserSchema, authListUsersSchema, authUpdateUserSchema, backendSchemaSchema, dbDeleteSchema, dbInsertSchema, dbRpcSchema, dbSelectSchema, dbUpdateSchema, storageDeleteSchema, storageListBucketsSchema, storageListObjectsSchema, taskAttachmentUploadSchema, storageUploadTextSchema, } from './toolSchemas.js';
 export const mcpToolDefinitions = [
     {
         name: 'nexus_backend_schema',
@@ -45,6 +45,11 @@ export const mcpToolDefinitions = [
         name: 'nexus_storage_upload_text',
         description: 'Crea o reemplaza un archivo de texto en Supabase Storage.',
         inputSchema: z.toJSONSchema(storageUploadTextSchema),
+    },
+    {
+        name: 'nexus_task_attachment_upload',
+        description: 'Adjunta una imagen o archivo binario a una tarea usando base64, guardando Storage y metadata en task_attachments.',
+        inputSchema: z.toJSONSchema(taskAttachmentUploadSchema),
     },
     {
         name: 'nexus_storage_delete',

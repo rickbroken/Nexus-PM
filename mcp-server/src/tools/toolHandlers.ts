@@ -11,6 +11,7 @@ import {
   listStorageBuckets,
   listStorageObjects,
   selectRows,
+  uploadTaskAttachment,
   updateAuthUser,
   updateRows,
   uploadStorageText,
@@ -31,6 +32,7 @@ import {
   storageDeleteSchema,
   storageListBucketsSchema,
   storageListObjectsSchema,
+  taskAttachmentUploadSchema,
   storageUploadTextSchema,
 } from './toolSchemas.js';
 
@@ -138,6 +140,18 @@ export async function handleStorageUploadTextTool({ context, input }: McpToolHan
   });
 }
 
+export async function handleTaskAttachmentUploadTool({ context, input }: McpToolHandlerInput) {
+  const parsed = taskAttachmentUploadSchema.parse(input);
+
+  return uploadTaskAttachment(context, parsed, {
+    enabled: true,
+    action_type: 'nexus_task_attachment_upload',
+    entity_type: 'task_attachment',
+    task_id: parsed.taskId,
+    input_text: 'mcp:nexus_task_attachment_upload',
+  });
+}
+
 export async function handleStorageDeleteTool({ context, input }: McpToolHandlerInput) {
   const parsed = storageDeleteSchema.parse(input);
 
@@ -217,6 +231,7 @@ export const mcpToolHandlers = {
   nexus_storage_list_buckets: handleStorageListBucketsTool,
   nexus_storage_list_objects: handleStorageListObjectsTool,
   nexus_storage_upload_text: handleStorageUploadTextTool,
+  nexus_task_attachment_upload: handleTaskAttachmentUploadTool,
   nexus_storage_delete: handleStorageDeleteTool,
   nexus_auth_list_users: handleAuthListUsersTool,
   nexus_auth_get_user: handleAuthGetUserTool,

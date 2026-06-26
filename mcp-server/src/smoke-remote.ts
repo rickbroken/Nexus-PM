@@ -81,6 +81,7 @@ async function main() {
   const toolNames = toolsList.json?.result?.tools?.map((tool: { name: string }) => tool.name) ?? [];
   assert.ok(toolNames.includes("nexus_backend_schema"));
   assert.ok(toolNames.includes("nexus_db_select"));
+  assert.ok(toolNames.includes("nexus_task_attachment_upload"));
 
   const schemaCall = await postJsonRpc({
     jsonrpc: "2.0",
