@@ -38,17 +38,20 @@ export const mcpToolDefinitions: McpToolDefinition[] = [
   },
   {
     name: 'nexus_db_insert',
-    description: 'Inserta filas en cualquier tabla del schema public, con auditoria obligatoria y user_id por defecto cuando aplica.',
+    description:
+      'Inserta filas en tablas permitidas del schema public, con auditoria obligatoria y user_id por defecto cuando aplica. No usar para tablas protegidas ni tablas respaldadas por Storage como task_attachments.',
     inputSchema: z.toJSONSchema(dbInsertSchema),
   },
   {
     name: 'nexus_db_update',
-    description: 'Actualiza filas de cualquier tabla del schema public usando filtros obligatorios.',
+    description:
+      'Actualiza filas en tablas permitidas del schema public usando filtros obligatorios. No usar para tablas protegidas ni tablas respaldadas por Storage como task_attachments.',
     inputSchema: z.toJSONSchema(dbUpdateSchema),
   },
   {
     name: 'nexus_db_delete',
-    description: 'Elimina filas de cualquier tabla del schema public solo con confirmacion explicita y filtros obligatorios.',
+    description:
+      'Elimina filas en tablas permitidas del schema public solo con confirmacion explicita y filtros obligatorios. No usar para tablas protegidas ni tablas respaldadas por Storage como task_attachments.',
     inputSchema: z.toJSONSchema(dbDeleteSchema),
   },
   {

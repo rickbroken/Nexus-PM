@@ -103,7 +103,7 @@ type AuthUserResult = {
 };
 
 const PROTECTED_READ_TABLES = ["project_credentials"] as const;
-const PROTECTED_WRITE_TABLES = ["agent_actions", "project_credentials"] as const;
+const PROTECTED_WRITE_TABLES = ["agent_actions", "project_credentials", "task_attachments"] as const;
 const AUTH_BLOCKED_DB_TABLES = ["auth.users"] as const;
 const DEFAULT_ACTOR_COLUMNS = ["user_id", "created_by", "added_by", "uploaded_by"] as const;
 const ENFORCED_ACTOR_COLUMNS = [
@@ -661,6 +661,12 @@ function ensureTableReadAllowed(table: string) {
 }
 
 function ensureTableWriteAllowed(table: string, action: "insert" | "update" | "delete") {
+  if (table === "task_attachments") {
+    throw new ToolExecutionError(
+      "La tabla task_attachments esta protegida para escritura generica. Usa nexus_task_attachment_upload para adjuntar archivos."
+    );
+  }
+
   if (PROTECTED_WRITE_TABLES.includes(table as never)) {
     throw new ToolExecutionError(`La tabla ${table} esta protegida para ${action}.`);
   }
@@ -1567,17 +1573,20 @@ const mcpToolDefinitions = [
   },
   {
     name: "nexus_db_insert",
-    description: "Inserta filas en cualquier tabla del schema public, con auditoria obligatoria y user_id por defecto cuando aplica.",
+    description:
+      "Inserta filas en tablas permitidas del schema public, con auditoria obligatoria y user_id por defecto cuando aplica. No usar para tablas protegidas ni tablas respaldadas por Storage como task_attachments.",
     inputSchema: dbInsertSchema,
   },
   {
     name: "nexus_db_update",
-    description: "Actualiza filas de cualquier tabla del schema public usando filtros obligatorios.",
+    description:
+      "Actualiza filas en tablas permitidas del schema public usando filtros obligatorios. No usar para tablas protegidas ni tablas respaldadas por Storage como task_attachments.",
     inputSchema: dbUpdateSchema,
   },
   {
     name: "nexus_db_delete",
-    description: "Elimina filas de cualquier tabla del schema public solo con confirmacion explicita y filtros obligatorios.",
+    description:
+      "Elimina filas en tablas permitidas del schema public solo con confirmacion explicita y filtros obligatorios. No usar para tablas protegidas ni tablas respaldadas por Storage como task_attachments.",
     inputSchema: dbDeleteSchema,
   },
   {

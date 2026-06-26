@@ -12,7 +12,7 @@ export interface AgentServerContext {
 }
 
 export const PROTECTED_READ_TABLES = ['project_credentials'] as const;
-export const PROTECTED_WRITE_TABLES = ['agent_actions', 'project_credentials'] as const;
+export const PROTECTED_WRITE_TABLES = ['agent_actions', 'project_credentials', 'task_attachments'] as const;
 export const AUTH_BLOCKED_DB_TABLES = ['auth.users'] as const;
 export const MAX_SELECT_LIMIT = 100;
 export const MAX_SCHEMA_ITEMS = 200;

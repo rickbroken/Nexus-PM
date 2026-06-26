@@ -23,6 +23,16 @@ export interface TaskAttachment {
   };
 }
 
+function isValidStoragePath(filePath: string): boolean {
+  const normalized = filePath.trim();
+  return (
+    normalized.length > 0 &&
+    !normalized.startsWith('openai-file:') &&
+    !normalized.includes('|sandbox:') &&
+    !normalized.startsWith('sandbox:')
+  );
+}
+
 // Hook para obtener los adjuntos de una tarea con suscripción en tiempo real
 export function useTaskAttachments(taskId: string | undefined) {
   const queryClient = useQueryClient();
@@ -195,6 +205,10 @@ export function useUploadAttachment() {
 export function useDownloadAttachment() {
   return useMutation({
     mutationFn: async (attachment: TaskAttachment) => {
+      if (!isValidStoragePath(attachment.file_path)) {
+        throw new Error('Este adjunto esta corrupto en Storage. Debe eliminarse y volver a subirse.');
+      }
+
       const { data, error } = await supabase.storage
         .from('task-attachments')
         .download(attachment.file_path);
@@ -223,6 +237,10 @@ export function useDownloadAttachment() {
 export function useGetAttachmentUrl() {
   return useMutation({
     mutationFn: async (filePath: string) => {
+      if (!isValidStoragePath(filePath)) {
+        throw new Error('El adjunto no tiene una ruta valida en Storage.');
+      }
+
       const { data, error } = await supabase.storage
         .from('task-attachments')
         .createSignedUrl(filePath, 3600); // 1 hora de validez

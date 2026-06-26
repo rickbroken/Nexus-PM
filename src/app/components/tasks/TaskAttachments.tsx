@@ -48,6 +48,7 @@ export function TaskAttachments({ taskId, task }: TaskAttachmentsProps) {
   const [previewFileName, setPreviewFileName] = useState<string>('');
   const [isLoadingPreview, setIsLoadingPreview] = useState(false);
   const [thumbnailUrls, setThumbnailUrls] = useState<Record<string, string>>({});
+  const [thumbnailErrors, setThumbnailErrors] = useState<Record<string, string>>({});
   const [downloadingFileId, setDownloadingFileId] = useState<string | null>(null);
   const [deletingFileId, setDeletingFileId] = useState<string | null>(null);
 
@@ -191,12 +192,14 @@ export function TaskAttachments({ taskId, task }: TaskAttachmentsProps) {
       
       for (const attachment of imageAttachments) {
         // Solo cargar si no está ya en el cache
-        if (!thumbnailUrls[attachment.id]) {
+        if (!thumbnailUrls[attachment.id] && !thumbnailErrors[attachment.id]) {
           try {
             const url = await getUrlMutation.mutateAsync(attachment.file_path);
             setThumbnailUrls(prev => ({ ...prev, [attachment.id]: url }));
           } catch (error) {
             console.error('Error loading thumbnail:', error);
+            const message = error instanceof Error ? error.message : 'No se pudo cargar la miniatura';
+            setThumbnailErrors(prev => ({ ...prev, [attachment.id]: message }));
           }
         }
       }
@@ -206,7 +209,7 @@ export function TaskAttachments({ taskId, task }: TaskAttachmentsProps) {
       loadThumbnails();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [attachments]);
+  }, [attachments, thumbnailUrls, thumbnailErrors]);
 
   const canUpload = user?.role && ['admin', 'pm', 'dev'].includes(user.role);
   const canDelete = (attachment: TaskAttachment) => {
@@ -320,6 +323,12 @@ export function TaskAttachments({ taskId, task }: TaskAttachmentsProps) {
       setThumbnailUrls(prev => ({ ...prev, [attachment.id]: url }));
     } catch (error) {
       console.error('Error getting preview URL:', error);
+      const message = error instanceof Error ? error.message : 'Error al cargar vista previa';
+      Swal.fire({
+        icon: 'error',
+        title: 'No se pudo abrir el adjunto',
+        text: message,
+      });
     } finally {
       setIsLoadingPreview(false);
     }
@@ -415,6 +424,7 @@ export function TaskAttachments({ taskId, task }: TaskAttachmentsProps) {
             {attachments.map((attachment) => {
               const isImage = isImageFile(attachment.file_type);
               const thumbnailUrl = thumbnailUrls[attachment.id];
+              const thumbnailError = thumbnailErrors[attachment.id];
               const readStatus = getReadStatus(attachment);
               
               return (
@@ -436,6 +446,11 @@ export function TaskAttachments({ taskId, task }: TaskAttachmentsProps) {
                             alt={attachment.file_name}
                             className="w-full h-full object-cover"
                           />
+                        ) : thumbnailError ? (
+                          <div className="w-full h-full flex flex-col items-center justify-center text-[10px] text-red-500 bg-red-50 px-1 text-center">
+                            <File className="h-5 w-5 mb-1" />
+                            <span>Error</span>
+                          </div>
                         ) : (
                           <div className="w-full h-full flex items-center justify-center">
                             <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
