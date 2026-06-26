@@ -1,93 +1,69 @@
-# Nexus-PM Agent MCP Contract
+# Nexus-PM MCP Contract
 
-## Objetivo
-Preparar el contrato técnico de las futuras tools MCP reales sobre la capa interna `src/lib/agent-api/`, sin implementar todavía servidor MCP, SDK MCP, backend nuevo ni integraciones externas.
+## Estado actual
+- El MCP controla Supabase directamente desde `mcp-server` usando `SUPABASE_SERVICE_ROLE_KEY`.
+- El frontend `/agent` es solo lectura y funciona como panel de monitoreo/auditoría.
+- La auditoría obligatoria se registra en `agent_actions`.
 
-## Estado de esta fase
-- Contrato preparado.
-- Handlers internos implementados.
-- Sin servidor MCP real.
-- Sin backend nuevo.
-- Respetando RLS con `AgentApiContext`.
+## Tools expuestas
 
-## nexus_get_daily_brief
-- Propósito: generar un resumen operativo diario del usuario autenticado.
-- Input: `{}`.
-- Output: `AgentBriefData` con tareas pendientes/vencidas, recordatorios próximos, finanzas visibles por rol y acciones fallidas recientes.
-- Tablas involucradas: `tasks`, `reminders`, `payments`, `recurring_charges`, `agent_actions`, `users_profiles`, `projects`.
-- Permisos/RLS: lectura según rol autenticado; finanzas solo donde RLS lo permita.
-- Función `agent-api` usada: `getDailyBrief(context)`.
-- Estado: contrato preparado, no servidor MCP real.
+### `nexus_db_select`
+- Propósito: leer filas de una tabla permitida.
+- Input: `{ table, columns?, filters?, orderBy?, limit? }`
+- Output: `{ table, count, rows }`
+- Tablas involucradas: cualquier tabla en `ALLOWED_TABLES`.
+- Permisos/seguridad: solo allowlist; filtros por igualdad exacta; `limit` acotado.
+- Función backend: `mcp-server/src/services/database.service.ts -> selectRows`
+- Estado: operativo.
 
-## nexus_get_pending_tasks
-- Propósito: listar tareas pendientes visibles para el usuario autenticado.
-- Input: `{ limit?: number }` con límite máximo de 5.
-- Output: lista de tareas con `id`, `title`, `status`, `priority`, `due_date`, proyecto y asignado cuando aplique.
-- Tablas involucradas: `tasks`, `users_profiles`, `projects`.
-- Permisos/RLS: lectura de tareas según rol autenticado.
-- Función `agent-api` usada: `getPendingTasks(context, { limit })`.
-- Estado: contrato preparado, no servidor MCP real.
+### `nexus_db_insert`
+- Propósito: insertar filas en una tabla permitida.
+- Input: `{ table, data }`
+- Output: `{ table, count, rows }`
+- Tablas involucradas: cualquier tabla en `ALLOWED_TABLES`, excepto `agent_actions`.
+- Permisos/seguridad: sanea `user_id`, bloquea suplantación de usuario y tablas protegidas.
+- Función backend: `mcp-server/src/services/database.service.ts -> insertRow`
+- Estado: operativo.
 
-## nexus_create_reminder
-- Propósito: crear un recordatorio interno.
-- Input: `{ title, description?, remind_at, project_id?, task_id? }`.
-- Output: recordatorio creado con `id`, `title`, `project_id`, `task_id`, `remind_at`, `source`, `status`.
-- Tablas involucradas: `reminders`, `agent_actions`.
-- Permisos/RLS: inserción solo para el propio usuario autenticado.
-- Función `agent-api` usada: `createReminder(context, input, audit)`.
-- Estado: contrato preparado, no servidor MCP real.
+### `nexus_db_update`
+- Propósito: actualizar filas con filtros obligatorios.
+- Input: `{ table, filters, data }`
+- Output: `{ table, count, rows }`
+- Tablas involucradas: cualquier tabla en `ALLOWED_TABLES`, excepto `agent_actions`.
+- Permisos/seguridad: rechaza updates sin filtros y cambios de `user_id` hacia otro usuario.
+- Función backend: `mcp-server/src/services/database.service.ts -> updateRows`
+- Estado: operativo.
 
-## nexus_complete_reminder
-- Propósito: marcar un recordatorio como completado.
-- Input: `{ reminder_id }`.
-- Output: resultado mínimo con `id` del recordatorio actualizado.
-- Tablas involucradas: `reminders`, `agent_actions`.
-- Permisos/RLS: actualización sobre recordatorios visibles/propios según políticas vigentes.
-- Función `agent-api` usada: `completeReminder(context, input, audit)`.
-- Estado: contrato preparado, no servidor MCP real.
+### `nexus_db_delete`
+- Propósito: eliminar filas solo con confirmación explícita.
+- Input: `{ table, filters, confirm }`
+- Output: `{ table, count, rows }`
+- Tablas involucradas: tablas permitidas no críticas.
+- Permisos/seguridad: exige `confirm === true`, exige filtros y bloquea tablas protegidas.
+- Función backend: `mcp-server/src/services/database.service.ts -> deleteRows`
+- Estado: operativo y protegido.
 
-## nexus_cancel_reminder
-- Propósito: cancelar un recordatorio sin borrarlo.
-- Input: `{ reminder_id }`.
-- Output: resultado mínimo con `id` del recordatorio actualizado.
-- Tablas involucradas: `reminders`, `agent_actions`.
-- Permisos/RLS: actualización sobre recordatorios visibles/propios según políticas vigentes.
-- Función `agent-api` usada: `cancelReminder(context, input, audit)`.
-- Estado: contrato preparado, no servidor MCP real.
+### `nexus_db_rpc`
+- Propósito: ejecutar RPCs permitidas explícitamente.
+- Input: `{ functionName, args? }`
+- Output: `{ functionName, data }`
+- Tablas involucradas: depende de la RPC.
+- Permisos/seguridad: solo allowlist `ALLOWED_RPCS`.
+- Función backend: `mcp-server/src/services/database.service.ts -> executeRpc`
+- Estado: operativo; sin RPCs habilitadas por defecto.
 
-## nexus_postpone_reminder
-- Propósito: mover un recordatorio pendiente a una nueva fecha.
-- Input: `{ reminder_id, remind_at }`.
-- Output: resultado mínimo con `id` del recordatorio actualizado.
-- Tablas involucradas: `reminders`, `agent_actions`.
-- Permisos/RLS: actualización sobre recordatorios visibles/propios según políticas vigentes.
-- Función `agent-api` usada: `postponeReminder(context, input, audit)`.
-- Estado: contrato preparado, no servidor MCP real.
+## Modelo de seguridad
+- `ALLOWED_TABLES = ['projects', 'tasks', 'clients', 'payments', 'recurring_charges', 'reminders', 'task_comments', 'project_members', 'notifications']`
+- `PROTECTED_TABLES = ['users_profiles', 'agent_actions', 'auth.users']`
+- `ALLOWED_RPCS = []` por defecto.
+- `agent_actions` no acepta inserción desde tools genéricas; solo desde auditoría interna.
+- No se imprimen secretos ni stack traces.
 
-## nexus_create_task
-- Propósito: crear una tarea interna asociada a un proyecto visible.
-- Input: `{ project_id, title, description?, priority? }`.
-- Output: tarea creada con `id`, `project_id`, `title`, `status`, `priority`, `review_status`.
-- Tablas involucradas: `tasks`, `agent_actions`.
-- Permisos/RLS: inserción de tareas según reglas vigentes para el usuario autenticado.
-- Función `agent-api` usada: `createTask(context, input, audit)`.
-- Estado: contrato preparado, no servidor MCP real.
-
-## nexus_update_task_status
-- Propósito: actualizar el estado operativo de una tarea.
-- Input: `{ task_id, status, review_status? }`.
-- Output: tarea actualizada con `id`, `project_id`, `title`, `status`, `priority`, `review_status`.
-- Tablas involucradas: `tasks`, `agent_actions`.
-- Permisos/RLS: actualización de tareas según reglas vigentes para el usuario autenticado.
-- Función `agent-api` usada: `updateTaskStatus(context, input, audit)`.
-- Estado: contrato preparado, no servidor MCP real.
-
-## Fuera de alcance en esta fase
-- Servidor MCP real.
-- SDK MCP.
-- OpenAI API o IA externa.
-- Google Calendar, Gmail, GitHub.
-- Jobs automáticos.
-- Service role.
-- Tablas nuevas.
-- Backend nuevo.
+## Auditoría obligatoria
+- `user_id = NEXUS_MCP_ALLOWED_USER_ID`
+- `action_type = nombre completo de la tool`
+- `entity_type = table` o `rpc`
+- `input_text = mcp:<tool_name>`
+- `status = success | failed`
+- `result = resumen seguro`
+- `error_message` cuando aplica

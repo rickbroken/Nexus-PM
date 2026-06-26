@@ -19,6 +19,11 @@ const actionTypeLabels: Record<string, string> = {
   nexus_postpone_reminder: 'MCP: posponer recordatorio',
   nexus_get_pending_tasks: 'MCP: consultar tareas pendientes',
   nexus_get_daily_brief: 'MCP: consultar resumen diario',
+  nexus_db_select: 'MCP: consultar base de datos',
+  nexus_db_insert: 'MCP: insertar en base de datos',
+  nexus_db_update: 'MCP: actualizar base de datos',
+  nexus_db_delete: 'MCP: eliminar en base de datos',
+  nexus_db_rpc: 'MCP: ejecutar RPC',
 };
 
 const statusLabels: Record<AgentAction['status'], string> = {

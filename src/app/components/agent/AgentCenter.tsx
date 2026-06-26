@@ -1,7 +1,6 @@
 import { AlertTriangle, Bot, Clock3, ListChecks } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/app/components/ui/card';
 import { AgentActionsTable } from './AgentActionsTable';
-import { AgentCommandBox } from './AgentCommandBox';
 import { AgentOperationalBrief } from './AgentOperationalBrief';
 import { AgentRemindersPanel } from './AgentRemindersPanel';
 import { useAgentActions, useRecentAgentActions } from '@/hooks/useAgentActions';
@@ -24,7 +23,7 @@ export function AgentCenter() {
         <div>
           <h1 className="text-3xl font-bold">Agent Center</h1>
           <p className="mt-1 text-zinc-600">
-            Base interna para la futura administracion de Nexus-PM por un agente MCP, manteniendo toda la operacion dentro del sistema.
+            Panel interno de monitoreo y auditoria para acciones ejecutadas por el backend MCP sobre Supabase.
           </p>
         </div>
       </div>
@@ -77,8 +76,6 @@ export function AgentCenter() {
 
       <AgentOperationalBrief />
 
-      <AgentCommandBox />
-
       <Card>
         <CardHeader>
           <CardTitle>Resumen de acciones recientes</CardTitle>
@@ -107,7 +104,7 @@ export function AgentCenter() {
         <CardHeader>
           <CardTitle>Recordatorios internos</CardTitle>
           <CardDescription>
-            Crear, listar, completar y cancelar recordatorios sin salir de Nexus-PM.
+            Historial interno de recordatorios registrados por el sistema y herramientas MCP.
           </CardDescription>
         </CardHeader>
         <CardContent>

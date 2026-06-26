@@ -1,6 +1,6 @@
 import { ZodError } from 'zod';
-import { mcpToolHandlers } from '../../src/lib/agent-mcp/index.js';
-import { buildAgentApiContext } from './context.js';
+import { buildAgentServerContext } from './db/context.js';
+import { mcpToolHandlers } from './tools/toolHandlers.js';
 import { InvalidToolInputError, ToolExecutionError, UnsupportedToolError, toSafeErrorMessage, } from './errors.js';
 export async function dispatchTool(toolName, input) {
     const handler = mcpToolHandlers[toolName];
@@ -9,7 +9,7 @@ export async function dispatchTool(toolName, input) {
     }
     try {
         return await handler({
-            context: buildAgentApiContext(),
+            context: buildAgentServerContext(),
             input,
         });
     }

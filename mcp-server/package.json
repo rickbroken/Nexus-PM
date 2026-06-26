@@ -4,19 +4,29 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "tsx src/index.ts",
+    "dev": "cross-env MCP_TRANSPORT=http tsx src/index.ts",
+    "dev:http": "cross-env MCP_TRANSPORT=http tsx src/index.ts",
+    "dev:stdio": "cross-env MCP_TRANSPORT=stdio tsx src/index.ts",
     "build": "tsc -p tsconfig.json",
-    "start": "node dist/mcp-server/src/index.js",
-    "smoke": "tsx src/smoke.ts"
+    "start": "cross-env MCP_TRANSPORT=http node dist/mcp-server/src/index.js",
+    "start:http": "cross-env MCP_TRANSPORT=http node dist/mcp-server/src/index.js",
+    "start:stdio": "cross-env MCP_TRANSPORT=stdio node dist/mcp-server/src/index.js",
+    "smoke": "tsx src/smoke.ts",
+    "smoke:http": "tsx src/smoke-http.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@supabase/supabase-js": "2.89.0",
+    "cors": "^2.8.5",
     "dotenv": "^17.2.1",
+    "express": "^5.1.0",
     "zod": "^4.2.1"
   },
   "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.3",
     "@types/node": "^24.3.0",
+    "cross-env": "^10.0.0",
     "tsx": "^4.20.3",
     "typescript": "^5.9.2"
   }
