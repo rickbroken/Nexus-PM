@@ -1,5 +1,6 @@
 import { ToolExecutionError } from '../errors.js';
-import { ALLOWED_RPCS, ALLOWED_TABLES, MAX_SELECT_LIMIT, PROTECTED_TABLES, TABLES_WITH_USER_ID } from './types.js';
+import { getServerConfig } from '../config.js';
+import { AUTH_BLOCKED_DB_TABLES, MAX_SELECT_LIMIT, PROTECTED_WRITE_TABLES } from './types.js';
 import { logAgentAction, tryLogAgentFailure } from './audit.service.js';
 function isPlainRecord(value) {
     return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -7,22 +8,6 @@ function isPlainRecord(value) {
 function ensureNonEmptyFilters(filters, action) {
     if (Object.keys(filters).length === 0) {
         throw new ToolExecutionError(`No se permite ${action} sin filtros.`);
-    }
-}
-function ensureTableNotProtected(table, action) {
-    if (PROTECTED_TABLES.includes(table)) {
-        throw new ToolExecutionError(`La tabla ${table} esta protegida para ${action}.`);
-    }
-}
-function ensureTableAllowed(table) {
-    if (!ALLOWED_TABLES.includes(table)) {
-        throw new ToolExecutionError(`La tabla ${table} no esta permitida para este servidor MCP.`);
-    }
-    return table;
-}
-function ensureGenericAgentActionsWriteBlocked(table) {
-    if (table === 'agent_actions') {
-        throw new ToolExecutionError('agent_actions solo permite inserciones desde la auditoria interna.');
     }
 }
 function sanitizeColumns(columns) {
@@ -33,7 +18,10 @@ function sanitizeColumns(columns) {
     if (trimmed === '*') {
         return '*';
     }
-    const parts = trimmed.split(',').map((part) => part.trim()).filter(Boolean);
+    const parts = trimmed
+        .split(',')
+        .map((part) => part.trim())
+        .filter(Boolean);
     if (parts.length === 0) {
         throw new ToolExecutionError('columns invalido.');
     }
@@ -73,37 +61,104 @@ function applyFilters(query, filters) {
     }
     return currentQuery;
 }
-function tableHasUserId(table) {
-    return TABLES_WITH_USER_ID.includes(table);
+function normalizePublicTableName(table) {
+    const trimmed = table.trim();
+    const parts = trimmed.split('.');
+    if (parts.length === 1) {
+        return parts[0];
+    }
+    if (parts.length === 2 && parts[0] === 'public') {
+        return parts[1];
+    }
+    throw new ToolExecutionError('Solo se permiten tablas del schema public en las tools genericas.');
+}
+function normalizePublicFunctionName(functionName) {
+    const trimmed = functionName.trim();
+    const parts = trimmed.split('.');
+    if (parts.length === 1) {
+        return parts[0];
+    }
+    if (parts.length === 2 && parts[0] === 'public') {
+        return parts[1];
+    }
+    throw new ToolExecutionError('Solo se permiten funciones del schema public en la tool RPC.');
+}
+let cachedOpenApi = null;
+async function getPostgrestOpenApi() {
+    if (cachedOpenApi) {
+        return cachedOpenApi;
+    }
+    const config = getServerConfig();
+    const response = await fetch(`${config.SUPABASE_URL}/rest/v1/`, {
+        headers: {
+            apikey: config.SUPABASE_SERVICE_ROLE_KEY,
+            Authorization: `Bearer ${config.SUPABASE_SERVICE_ROLE_KEY}`,
+            Accept: 'application/openapi+json',
+        },
+    });
+    if (!response.ok) {
+        throw new ToolExecutionError(`No se pudo cargar el contrato OpenAPI del backend (${response.status}).`);
+    }
+    cachedOpenApi = (await response.json());
+    return cachedOpenApi;
+}
+async function getPublicTableNames(context) {
+    const openApi = await getPostgrestOpenApi();
+    const tableNames = Object.keys(openApi.paths ?? {})
+        .filter((path) => /^\/[a-zA-Z_][a-zA-Z0-9_]*$/.test(path))
+        .map((path) => path.slice(1));
+    return new Set(tableNames);
+}
+async function getPublicFunctionNames(context) {
+    const openApi = await getPostgrestOpenApi();
+    const functionNames = Object.keys(openApi.paths ?? {})
+        .filter((path) => path.startsWith('/rpc/'))
+        .map((path) => path.replace('/rpc/', ''));
+    return new Set(functionNames);
+}
+async function getPublicTableColumns(context, table) {
+    const openApi = await getPostgrestOpenApi();
+    const definition = openApi.definitions?.[table];
+    const properties = definition?.properties ?? {};
+    return new Set(Object.keys(properties));
+}
+async function ensurePublicTableAllowed(context, table) {
+    const normalizedTable = normalizePublicTableName(table);
+    if (AUTH_BLOCKED_DB_TABLES.includes(table) || AUTH_BLOCKED_DB_TABLES.includes(normalizedTable)) {
+        throw new ToolExecutionError(`La tabla ${table} no se puede operar desde las tools genericas.`);
+    }
+    const publicTables = await getPublicTableNames(context);
+    if (!publicTables.has(normalizedTable)) {
+        throw new ToolExecutionError(`La tabla public.${normalizedTable} no existe o no esta expuesta.`);
+    }
+    return normalizedTable;
+}
+function ensureTableWriteAllowed(table, action) {
+    if (PROTECTED_WRITE_TABLES.includes(table)) {
+        throw new ToolExecutionError(`La tabla ${table} esta protegida para ${action}.`);
+    }
+}
+function ensureGenericAgentActionsWriteBlocked(table) {
+    if (table === 'agent_actions') {
+        throw new ToolExecutionError('agent_actions solo permite inserciones desde la auditoria interna.');
+    }
 }
 async function sanitizeInsertData(context, table, data) {
     if (!isPlainRecord(data) || Object.keys(data).length === 0) {
         throw new ToolExecutionError('data debe ser un objeto no vacio.');
     }
     const payload = { ...data };
-    const hasUserId = tableHasUserId(table);
-    if (!hasUserId) {
-        return payload;
-    }
-    if (payload.user_id === undefined) {
+    const columns = await getPublicTableColumns(context, table);
+    if (columns.has('user_id') && payload.user_id === undefined) {
         payload.user_id = context.userId;
-        return payload;
-    }
-    if (payload.user_id !== context.userId) {
-        throw new ToolExecutionError('No se permite actuar en nombre de otro usuario.');
     }
     return payload;
 }
-async function sanitizeUpdateData(context, table, data) {
+async function sanitizeUpdateData(_context, _table, data) {
     if (!isPlainRecord(data) || Object.keys(data).length === 0) {
         throw new ToolExecutionError('data debe ser un objeto no vacio.');
     }
-    const payload = { ...data };
-    const hasUserId = tableHasUserId(table);
-    if (hasUserId && payload.user_id !== undefined && payload.user_id !== context.userId) {
-        throw new ToolExecutionError('No se permite cambiar user_id hacia otro usuario.');
-    }
-    return payload;
+    return { ...data };
 }
 function buildEntityMetadata(table, rows) {
     const firstRow = rows[0] ?? {};
@@ -152,10 +207,10 @@ async function auditFailure(context, audit, error) {
 }
 export async function selectRows(context, input, audit) {
     try {
-        const table = ensureTableAllowed(input.table);
+        const table = await ensurePublicTableAllowed(context, input.table);
         const columns = sanitizeColumns(input.columns);
         const limit = Math.min(input.limit ?? 20, MAX_SELECT_LIMIT);
-        let query = context.supabaseClient.from(table).select(columns);
+        let query = context.supabaseClient.schema('public').from(table).select(columns);
         query = applyFilters(query, input.filters);
         const orderBy = parseOrderBy(input.orderBy);
         if (orderBy) {
@@ -185,11 +240,12 @@ export async function selectRows(context, input, audit) {
 }
 export async function insertRow(context, input, audit) {
     try {
-        ensureGenericAgentActionsWriteBlocked(input.table);
-        ensureTableNotProtected(input.table, 'insert');
-        const table = ensureTableAllowed(input.table);
+        const table = await ensurePublicTableAllowed(context, input.table);
+        ensureGenericAgentActionsWriteBlocked(table);
+        ensureTableWriteAllowed(table, 'insert');
         const payload = await sanitizeInsertData(context, table, input.data);
         const { data, error } = await context.supabaseClient
+            .schema('public')
             .from(table)
             .insert([payload])
             .select('*');
@@ -219,12 +275,12 @@ export async function insertRow(context, input, audit) {
 }
 export async function updateRows(context, input, audit) {
     try {
-        ensureGenericAgentActionsWriteBlocked(input.table);
-        ensureTableNotProtected(input.table, 'update');
-        const table = ensureTableAllowed(input.table);
+        const table = await ensurePublicTableAllowed(context, input.table);
+        ensureGenericAgentActionsWriteBlocked(table);
+        ensureTableWriteAllowed(table, 'update');
         ensureNonEmptyFilters(input.filters, 'update');
         const payload = await sanitizeUpdateData(context, table, input.data);
-        let query = context.supabaseClient.from(table).update(payload);
+        let query = context.supabaseClient.schema('public').from(table).update(payload);
         query = applyFilters(query, input.filters);
         const { data, error } = await query.select('*');
         if (error) {
@@ -249,14 +305,14 @@ export async function updateRows(context, input, audit) {
 }
 export async function deleteRows(context, input, audit) {
     try {
-        ensureGenericAgentActionsWriteBlocked(input.table);
-        ensureTableNotProtected(input.table, 'delete');
-        const table = ensureTableAllowed(input.table);
+        const table = await ensurePublicTableAllowed(context, input.table);
+        ensureGenericAgentActionsWriteBlocked(table);
+        ensureTableWriteAllowed(table, 'delete');
         ensureNonEmptyFilters(input.filters, 'delete');
         if (input.confirm !== true) {
             throw new ToolExecutionError('confirm debe ser true para ejecutar delete.');
         }
-        let query = context.supabaseClient.from(table).delete();
+        let query = context.supabaseClient.schema('public').from(table).delete();
         query = applyFilters(query, input.filters);
         const { data, error } = await query.select('*');
         if (error) {
@@ -282,21 +338,21 @@ export async function deleteRows(context, input, audit) {
 }
 export async function executeRpc(context, input, audit) {
     try {
-        if (!ALLOWED_RPCS.includes(input.functionName)) {
-            throw new ToolExecutionError(ALLOWED_RPCS.length === 0
-                ? 'No hay RPCs habilitadas en este servidor MCP.'
-                : `RPC no permitida: ${input.functionName}`);
+        const functionName = normalizePublicFunctionName(input.functionName);
+        const publicFunctions = await getPublicFunctionNames(context);
+        if (!publicFunctions.has(functionName)) {
+            throw new ToolExecutionError(`La funcion public.${functionName} no existe o no esta expuesta.`);
         }
-        const { data, error } = await context.supabaseClient.rpc(input.functionName, input.args ?? {});
+        const { data, error } = await context.supabaseClient.rpc(functionName, input.args ?? {});
         if (error) {
             throw new ToolExecutionError(error.message);
         }
         await auditSuccess(context, audit, {
-            functionName: input.functionName,
+            functionName,
             hasArgs: !!input.args && Object.keys(input.args).length > 0,
         });
         return {
-            functionName: input.functionName,
+            functionName,
             data,
         };
     }

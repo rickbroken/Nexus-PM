@@ -27,17 +27,22 @@ function getProcessEnv() {
     };
 }
 function extractTextPayload(result) {
-    return result.content
+    return (result.content
         ?.filter((item) => item.type === 'text' && typeof item.text === 'string')
         .map((item) => item.text ?? '')
-        .join('\n') ?? '';
+        .join('\n') ?? '');
 }
-function parseToolJson(result) {
+function parseToolJson(toolName, result) {
     const text = extractTextPayload(result);
     if (!text) {
-        throw new Error('La tool no devolvio contenido serializable.');
+        throw new Error(`La tool ${toolName} no devolvio contenido serializable.`);
     }
-    return JSON.parse(text);
+    try {
+        return JSON.parse(text);
+    }
+    catch {
+        throw new Error(`La tool ${toolName} devolvio texto no JSON: ${text}`);
+    }
 }
 async function expectToolFailure(client, name, args, expectedMessagePart) {
     const result = (await client.callTool({ name, arguments: args }));
@@ -54,6 +59,8 @@ async function main() {
     const reminderTitle = `[SMOKE MCP] ${randomUUID()}`;
     const updatedReminderDescription = `[SMOKE UPDATE] ${randomUUID()}`;
     const remindAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+    const storagePath = `mcp-smoke/${randomUUID()}.txt`;
+    const storageContent = `smoke:${randomUUID()}`;
     const serverEntry = getServerEntryPath();
     const supabase = createClient(config.SUPABASE_URL, config.SUPABASE_SERVICE_ROLE_KEY, {
         auth: {
@@ -85,6 +92,12 @@ async function main() {
     console.log('[smoke] Environment:', JSON.stringify(getMaskedEnvSummary()));
     await client.connect(transport);
     try {
+        const schemaResult = (await client.callTool({
+            name: 'nexus_backend_schema',
+            arguments: {
+                resource: 'all',
+            },
+        }));
         const selectResult = (await client.callTool({
             name: 'nexus_db_select',
             arguments: {
@@ -106,7 +119,7 @@ async function main() {
                 },
             },
         }));
-        const insertedPayload = parseToolJson(insertResult);
+        const insertedPayload = parseToolJson('nexus_db_insert', insertResult);
         const reminderId = insertedPayload.rows[0]?.id;
         if (!reminderId) {
             throw new Error('No se obtuvo el id del reminder insertado.');
@@ -123,6 +136,21 @@ async function main() {
                 },
             },
         }));
+        const authListResult = (await client.callTool({
+            name: 'nexus_auth_list_users',
+            arguments: {
+                page: 1,
+                perPage: 5,
+            },
+        }));
+        const bucketListResult = (await client.callTool({
+            name: 'nexus_storage_list_buckets',
+            arguments: {},
+        }));
+        await expectToolFailure(client, 'nexus_db_select', {
+            table: 'auth.users',
+            limit: 1,
+        }, 'public');
         await expectToolFailure(client, 'nexus_db_delete', {
             table: 'reminders',
             filters: {
@@ -140,7 +168,58 @@ async function main() {
         await expectToolFailure(client, 'nexus_db_rpc', {
             functionName: 'non_existing_rpc',
             args: {},
-        }, 'rpc');
+        }, 'no existe');
+        const schemaPayload = parseToolJson('nexus_backend_schema', schemaResult);
+        const selectPayload = parseToolJson('nexus_db_select', selectResult);
+        const updatePayload = parseToolJson('nexus_db_update', updateResult);
+        const authPayload = parseToolJson('nexus_auth_list_users', authListResult);
+        const bucketPayload = parseToolJson('nexus_storage_list_buckets', bucketListResult);
+        let storageBucketName = null;
+        if (bucketPayload.count > 0) {
+            storageBucketName = bucketPayload.buckets[0]?.name ?? null;
+        }
+        if (storageBucketName) {
+            const uploadResult = (await client.callTool({
+                name: 'nexus_storage_upload_text',
+                arguments: {
+                    bucket: storageBucketName,
+                    path: storagePath,
+                    content: storageContent,
+                    upsert: true,
+                },
+            }));
+            const storageObjectsResult = (await client.callTool({
+                name: 'nexus_storage_list_objects',
+                arguments: {
+                    bucket: storageBucketName,
+                    prefix: 'mcp-smoke',
+                    limit: 20,
+                },
+            }));
+            await expectToolFailure(client, 'nexus_storage_delete', {
+                bucket: storageBucketName,
+                paths: [storagePath],
+                confirm: false,
+            }, 'confirm');
+            const storageDeleteResult = (await client.callTool({
+                name: 'nexus_storage_delete',
+                arguments: {
+                    bucket: storageBucketName,
+                    paths: [storagePath],
+                    confirm: true,
+                },
+            }));
+            const uploadPayload = parseToolJson('nexus_storage_upload_text', uploadResult);
+            const storageObjectsPayload = parseToolJson('nexus_storage_list_objects', storageObjectsResult);
+            const storageDeletePayload = parseToolJson('nexus_storage_delete', storageDeleteResult);
+            const storageObjectFound = storageObjectsPayload.objects.some((row) => row.name === storagePath.split('/').pop());
+            if (!storageObjectFound) {
+                throw new Error('El objeto temporal de storage no aparecio en el listado.');
+            }
+            if (uploadPayload.path !== storagePath || storageDeletePayload.deletedCount < 1) {
+                throw new Error('Las tools de storage no devolvieron el resultado esperado.');
+            }
+        }
         const deleteSuccessResult = (await client.callTool({
             name: 'nexus_db_delete',
             arguments: {
@@ -151,11 +230,14 @@ async function main() {
                 confirm: true,
             },
         }));
-        const selectPayload = parseToolJson(selectResult);
-        const updatePayload = parseToolJson(updateResult);
-        const deletePayload = parseToolJson(deleteSuccessResult);
-        if (selectPayload.count < 0 || updatePayload.count !== 1 || deletePayload.count !== 1) {
-            throw new Error('Las tools genericas no devolvieron los conteos esperados.');
+        const deletePayload = parseToolJson('nexus_db_delete', deleteSuccessResult);
+        if (!schemaPayload.tables?.length ||
+            !schemaPayload.columns?.length ||
+            selectPayload.count < 0 ||
+            updatePayload.count !== 1 ||
+            deletePayload.count !== 1 ||
+            authPayload.count < 0) {
+            throw new Error('Las tools MCP no devolvieron la informacion esperada.');
         }
         const { data: reminderRow, error: reminderError } = await supabase
             .from('reminders')
@@ -167,78 +249,70 @@ async function main() {
         if (reminderRow) {
             throw new Error('El reminder temporal no fue eliminado por nexus_db_delete.');
         }
-        const { data: insertedAuditReminder, error: insertedAuditReminderError } = await supabase
-            .from('agent_actions')
-            .select('id')
-            .eq('user_id', config.NEXUS_MCP_ALLOWED_USER_ID)
-            .eq('action_type', 'nexus_db_insert')
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .maybeSingle();
-        if (insertedAuditReminderError)
-            throw insertedAuditReminderError;
-        const { data: insertedReminderRow, error: insertedReminderError } = await supabase
-            .from('reminders')
-            .select('id, title, user_id, source, status')
-            .eq('title', reminderTitle)
-            .eq('user_id', config.NEXUS_MCP_ALLOWED_USER_ID)
-            .eq('description', updatedReminderDescription)
-            .order('updated_at', { ascending: false })
-            .limit(1)
-            .maybeSingle();
-        if (insertedReminderError)
-            throw insertedReminderError;
-        if (insertedReminderRow) {
-            throw new Error('El reminder temporal debio haber sido eliminado al final del smoke.');
-        }
-        if (!insertedAuditReminder) {
-            throw new Error('No se encontro auditoria de insercion para el smoke.');
-        }
-        const { data: actionRows, error: actionError } = await supabase
-            .from('agent_actions')
-            .select('action_type, input_text, status, user_id, created_at')
-            .eq('user_id', config.NEXUS_MCP_ALLOWED_USER_ID)
-            .in('action_type', [
+        const actionTypes = [
+            'nexus_backend_schema',
             'nexus_db_select',
             'nexus_db_insert',
             'nexus_db_update',
             'nexus_db_delete',
             'nexus_db_rpc',
-        ])
+            'nexus_auth_list_users',
+            'nexus_storage_list_buckets',
+        ];
+        if (storageBucketName) {
+            actionTypes.push('nexus_storage_upload_text', 'nexus_storage_list_objects', 'nexus_storage_delete');
+        }
+        const { data: actionRows, error: actionError } = await supabase
+            .from('agent_actions')
+            .select('action_type, input_text, status, user_id, created_at')
+            .eq('user_id', config.NEXUS_MCP_ALLOWED_USER_ID)
+            .in('action_type', actionTypes)
             .order('created_at', { ascending: false })
-            .limit(20);
+            .limit(40);
         if (actionError)
             throw actionError;
-        const hasSelectAudit = (actionRows ?? []).some((row) => row.action_type === 'nexus_db_select' &&
-            row.input_text === 'mcp:nexus_db_select' &&
-            row.status === 'success');
-        const hasInsertAudit = (actionRows ?? []).some((row) => row.action_type === 'nexus_db_insert' &&
-            row.input_text === 'mcp:nexus_db_insert' &&
-            row.status === 'success');
-        const hasUpdateAudit = (actionRows ?? []).some((row) => row.action_type === 'nexus_db_update' &&
-            row.input_text === 'mcp:nexus_db_update' &&
-            row.status === 'success');
-        const hasDeleteSuccessAudit = (actionRows ?? []).some((row) => row.action_type === 'nexus_db_delete' &&
-            row.input_text === 'mcp:nexus_db_delete' &&
-            row.status === 'success');
+        const requiredAudits = [
+            'nexus_backend_schema',
+            'nexus_db_select',
+            'nexus_db_insert',
+            'nexus_db_update',
+            'nexus_db_delete',
+            'nexus_auth_list_users',
+            'nexus_storage_list_buckets',
+        ];
+        if (storageBucketName) {
+            requiredAudits.push('nexus_storage_upload_text', 'nexus_storage_list_objects', 'nexus_storage_delete');
+        }
+        for (const actionType of requiredAudits) {
+            const hasAudit = (actionRows ?? []).some((row) => row.action_type === actionType && row.input_text === `mcp:${actionType}` && row.status === 'success');
+            if (!hasAudit) {
+                throw new Error(`No se encontro auditoria exitosa para ${actionType}.`);
+            }
+        }
         const hasDeleteFailedAudit = (actionRows ?? []).some((row) => row.action_type === 'nexus_db_delete' &&
             row.input_text === 'mcp:nexus_db_delete' &&
             row.status === 'failed');
         const hasRpcFailedAudit = (actionRows ?? []).some((row) => row.action_type === 'nexus_db_rpc' &&
             row.input_text === 'mcp:nexus_db_rpc' &&
             row.status === 'failed');
-        if (!hasSelectAudit ||
-            !hasInsertAudit ||
-            !hasUpdateAudit ||
-            !hasDeleteSuccessAudit ||
-            !hasDeleteFailedAudit ||
-            !hasRpcFailedAudit) {
-            throw new Error('No se encontraron todos los registros esperados en agent_actions.');
+        if (!hasDeleteFailedAudit || !hasRpcFailedAudit) {
+            throw new Error('No se encontraron todos los fallos auditados esperados.');
         }
+        console.log('[smoke] nexus_backend_schema: OK');
         console.log('[smoke] nexus_db_select: OK');
         console.log('[smoke] nexus_db_insert: OK');
         console.log('[smoke] nexus_db_update: OK');
         console.log('[smoke] nexus_db_delete: OK');
+        console.log('[smoke] nexus_auth_list_users: OK');
+        console.log('[smoke] nexus_storage_list_buckets: OK');
+        if (storageBucketName) {
+            console.log('[smoke] nexus_storage_upload_text: OK');
+            console.log('[smoke] nexus_storage_list_objects: OK');
+            console.log('[smoke] nexus_storage_delete: OK');
+        }
+        else {
+            console.log('[smoke] storage write tests: SKIPPED (sin buckets)');
+        }
         console.log('[smoke] nexus_db_rpc protegido: OK');
         console.log('[smoke] Reminder insertado y eliminado:', JSON.stringify({
             id: reminderId,

@@ -15,7 +15,7 @@ const configSchema = z.object({
   MCP_HTTP_HOST: z.string().min(1, 'MCP_HTTP_HOST es obligatorio').default('127.0.0.1'),
   MCP_ALLOWED_HOSTS: z
     .string()
-    .default('127.0.0.1,localhost')
+    .default('127.0.0.1,localhost,*.ngrok-free.app')
     .transform(parseCsvList),
   MCP_ALLOWED_ORIGINS: z
     .string()

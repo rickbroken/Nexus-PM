@@ -11,25 +11,14 @@ export interface AgentServerContext {
   userRole: UserRole;
 }
 
-export const ALLOWED_TABLES = [
-  'projects',
-  'tasks',
-  'clients',
-  'payments',
-  'recurring_charges',
-  'reminders',
-  'task_comments',
-  'project_members',
-  'notifications',
-] as const;
-
-export const PROTECTED_TABLES = ['users_profiles', 'agent_actions', 'auth.users'] as const;
-export const ALLOWED_RPCS = [] as const;
+export const PROTECTED_WRITE_TABLES = ['agent_actions'] as const;
+export const AUTH_BLOCKED_DB_TABLES = ['auth.users'] as const;
 export const MAX_SELECT_LIMIT = 100;
-export const TABLES_WITH_USER_ID = ['reminders', 'task_comments', 'project_members', 'notifications'] as const;
+export const MAX_SCHEMA_ITEMS = 200;
+export const MAX_STORAGE_LIST_LIMIT = 100;
+export const MAX_STORAGE_DELETE_BATCH = 50;
+export const MAX_AUTH_LIST_PER_PAGE = 100;
 
-export type AllowedTable = (typeof ALLOWED_TABLES)[number];
-export type ProtectedTable = (typeof PROTECTED_TABLES)[number];
 export type AgentActionStatus = 'success' | 'failed' | 'pending';
 export type SimpleFilterValue = string | number | boolean | null;
 export type SimpleFilters = Record<string, SimpleFilterValue>;
@@ -85,6 +74,68 @@ export const dbRpcSchema = z.object({
   args: z.record(z.string(), z.unknown()).optional(),
 });
 
+export const backendSchemaSchema = z.object({
+  resource: z.enum(['tables', 'columns', 'rpcs', 'buckets', 'all']).optional().default('all'),
+  table: tableNameSchema.optional(),
+});
+
+export const storageListBucketsSchema = z.object({});
+
+export const storageListObjectsSchema = z.object({
+  bucket: z.string().trim().min(1, 'bucket es obligatorio'),
+  prefix: z.string().trim().optional(),
+  limit: z.number().int().positive().max(MAX_STORAGE_LIST_LIMIT).optional(),
+});
+
+export const storageUploadTextSchema = z.object({
+  bucket: z.string().trim().min(1, 'bucket es obligatorio'),
+  path: z.string().trim().min(1, 'path es obligatorio'),
+  content: z.string(),
+  contentType: z.string().trim().optional(),
+  upsert: z.boolean().optional().default(true),
+});
+
+export const storageDeleteSchema = z.object({
+  bucket: z.string().trim().min(1, 'bucket es obligatorio'),
+  paths: z.array(z.string().trim().min(1)).min(1).max(MAX_STORAGE_DELETE_BATCH),
+  confirm: z.boolean(),
+});
+
+export const authListUsersSchema = z.object({
+  page: z.number().int().positive().optional().default(1),
+  perPage: z.number().int().positive().max(MAX_AUTH_LIST_PER_PAGE).optional().default(50),
+});
+
+export const authGetUserSchema = z.object({
+  userId: z.string().uuid('userId debe ser un UUID'),
+});
+
+export const authCreateUserSchema = z.object({
+  email: z.string().email('email invalido'),
+  password: z.string().min(6, 'password debe tener al menos 6 caracteres').optional(),
+  emailConfirm: z.boolean().optional().default(false),
+  phone: z.string().trim().optional(),
+  userMetadata: z.record(z.string(), z.unknown()).optional(),
+  appMetadata: z.record(z.string(), z.unknown()).optional(),
+});
+
+export const authUpdateUserSchema = z.object({
+  userId: z.string().uuid('userId debe ser un UUID'),
+  email: z.string().email('email invalido').optional(),
+  password: z.string().min(6, 'password debe tener al menos 6 caracteres').optional(),
+  phone: z.string().trim().optional(),
+  userMetadata: z.record(z.string(), z.unknown()).optional(),
+  appMetadata: z.record(z.string(), z.unknown()).optional(),
+  banDuration: z.string().trim().optional(),
+  emailConfirm: z.boolean().optional(),
+});
+
+export const authDeleteUserSchema = z.object({
+  userId: z.string().uuid('userId debe ser un UUID'),
+  confirm: z.boolean(),
+  shouldSoftDelete: z.boolean().optional().default(false),
+});
+
 export const agentActionInputSchema = z.object({
   action_type: z.string().trim().min(2, 'El tipo de accion es obligatorio'),
   entity_type: z.string().trim().optional().nullable(),
@@ -105,16 +156,26 @@ export type DbInsertInput = z.infer<typeof dbInsertSchema>;
 export type DbUpdateInput = z.infer<typeof dbUpdateSchema>;
 export type DbDeleteInput = z.infer<typeof dbDeleteSchema>;
 export type DbRpcInput = z.infer<typeof dbRpcSchema>;
+export type BackendSchemaInput = z.infer<typeof backendSchemaSchema>;
+export type StorageListBucketsInput = z.infer<typeof storageListBucketsSchema>;
+export type StorageListObjectsInput = z.infer<typeof storageListObjectsSchema>;
+export type StorageUploadTextInput = z.infer<typeof storageUploadTextSchema>;
+export type StorageDeleteInput = z.infer<typeof storageDeleteSchema>;
+export type AuthListUsersInput = z.infer<typeof authListUsersSchema>;
+export type AuthGetUserInput = z.infer<typeof authGetUserSchema>;
+export type AuthCreateUserInput = z.infer<typeof authCreateUserSchema>;
+export type AuthUpdateUserInput = z.infer<typeof authUpdateUserSchema>;
+export type AuthDeleteUserInput = z.infer<typeof authDeleteUserSchema>;
 export type AgentActionInput = z.infer<typeof agentActionInputSchema>;
 
 export interface DatabaseSelectResult {
-  table: AllowedTable;
+  table: string;
   count: number;
   rows: Record<string, unknown>[];
 }
 
 export interface DatabaseMutationResult {
-  table: AllowedTable;
+  table: string;
   count: number;
   rows: Record<string, unknown>[];
 }
@@ -122,4 +183,44 @@ export interface DatabaseMutationResult {
 export interface DatabaseRpcResult {
   functionName: string;
   data: unknown;
+}
+
+export interface BackendSchemaResult {
+  resource: BackendSchemaInput['resource'];
+  tables?: Array<{ name: string; type: string }>;
+  columns?: Array<{ table: string; column: string; dataType: string; isNullable: boolean }>;
+  rpcs?: Array<{ name: string; returnType: string | null }>;
+  buckets?: Array<{ id: string; name: string; public: boolean | null }>;
+}
+
+export interface StorageListBucketsResult {
+  count: number;
+  buckets: Array<{ id: string; name: string; public: boolean | null; fileSizeLimit?: number | null }>;
+}
+
+export interface StorageListObjectsResult {
+  bucket: string;
+  count: number;
+  objects: Array<Record<string, unknown>>;
+}
+
+export interface StorageUploadTextResult {
+  bucket: string;
+  path: string;
+  contentType: string;
+}
+
+export interface StorageDeleteResult {
+  bucket: string;
+  deletedCount: number;
+  paths: string[];
+}
+
+export interface AuthListUsersResult {
+  count: number;
+  users: Array<Record<string, unknown>>;
+}
+
+export interface AuthUserResult {
+  user: Record<string, unknown>;
 }

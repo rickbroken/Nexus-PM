@@ -12,7 +12,7 @@ Controla Supabase directamente desde backend con `SUPABASE_SERVICE_ROLE_KEY`. El
 - No está desplegado.
 - Soporta `http://127.0.0.1:3333/mcp` por defecto.
 - Mantiene modo `stdio`.
-- Expone 5 tools genéricas de base de datos.
+- Expone control backend amplio sobre esquema, tablas públicas, RPCs públicas, Storage y Auth admin.
 - El service role existe solo dentro de `mcp-server`.
 
 ## Variables requeridas
@@ -23,7 +23,7 @@ Crear `mcp-server/.env` a partir de `.env.example`:
 MCP_TRANSPORT=http
 MCP_HTTP_PORT=3333
 MCP_HTTP_HOST=127.0.0.1
-MCP_ALLOWED_HOSTS=127.0.0.1,localhost
+MCP_ALLOWED_HOSTS=127.0.0.1,localhost,*.ngrok-free.app
 MCP_ALLOWED_ORIGINS=https://chatgpt.com,https://chat.openai.com
 SUPABASE_URL=
 SUPABASE_SERVICE_ROLE_KEY=
@@ -33,26 +33,36 @@ NEXUS_MCP_ALLOWED_ROLE=admin
 
 ## Tools expuestas
 
+- `nexus_backend_schema`
 - `nexus_db_select`
 - `nexus_db_insert`
 - `nexus_db_update`
 - `nexus_db_delete`
 - `nexus_db_rpc`
+- `nexus_storage_list_buckets`
+- `nexus_storage_list_objects`
+- `nexus_storage_upload_text`
+- `nexus_storage_delete`
+- `nexus_auth_list_users`
+- `nexus_auth_get_user`
+- `nexus_auth_create_user`
+- `nexus_auth_update_user`
+- `nexus_auth_delete_user`
 
 ## Reglas de seguridad
 
-- `ALLOWED_TABLES = ['projects', 'tasks', 'clients', 'payments', 'recurring_charges', 'reminders', 'task_comments', 'project_members', 'notifications']`
-- `PROTECTED_TABLES = ['users_profiles', 'agent_actions', 'auth.users']`
-- `ALLOWED_RPCS = []` por defecto.
-- `nexus_db_update` y `nexus_db_delete` exigen filtros.
-- `nexus_db_delete` exige `confirm=true`.
-- `agent_actions` solo recibe inserciones desde la auditoría interna.
+- Las tools genéricas de DB operan solo sobre tablas `public.*`.
+- `agent_actions` está protegida para escrituras genéricas.
+- La introspección usa `information_schema`.
+- `nexus_db_delete`, `nexus_storage_delete` y `nexus_auth_delete_user` exigen `confirm=true`.
+- Auth admin y Storage se ejecutan solo en backend con service role.
+- No se imprimen secretos ni stack traces.
 
 ## Arquitectura interna
 
 - `src/db/`: cliente Supabase server-only y contexto fijo desde variables de entorno.
-- `src/services/`: auditoría y operaciones genéricas de base de datos.
-- `src/tools/`: schemas Zod, definiciones MCP y handlers de las 5 tools.
+- `src/services/`: auditoría, operaciones genéricas de base de datos, introspección de esquema, Storage y Auth admin.
+- `src/tools/`: schemas Zod, definiciones MCP y handlers de todas las tools.
 
 ## Uso local
 
@@ -112,10 +122,14 @@ pnpm smoke
 
 Valida:
 
+- `nexus_backend_schema`
 - `nexus_db_select`
 - `nexus_db_insert`
 - `nexus_db_update`
 - `nexus_db_delete`
+- `nexus_auth_list_users`
+- `nexus_storage_list_buckets`
+- `nexus_storage_upload_text` / `list_objects` / `delete` si existe al menos un bucket
 - rechazo protegido de `nexus_db_rpc`
 - auditoría en `agent_actions`
 
@@ -141,4 +155,4 @@ https://xxxxx.ngrok-free.app/mcp
 https://xxxxx.trycloudflare.com/mcp
 ```
 
-La URL pública `/mcp` es la que debes usar como "URL del servidor" en ChatGPT Apps.
+La URL pública `/mcp` es la que debes usar como `URL del servidor` en ChatGPT Apps.

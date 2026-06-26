@@ -8,7 +8,30 @@ async function main() {
   const config = getServerConfig();
 
   if (config.MCP_TRANSPORT === 'http') {
-    await startHttpServer();
+    const runtime = await startHttpServer();
+
+    await new Promise<void>((resolve, reject) => {
+      let shuttingDown = false;
+
+      const handleSignal = async () => {
+        if (shuttingDown) return;
+        shuttingDown = true;
+
+        process.off('SIGINT', handleSignal);
+        process.off('SIGTERM', handleSignal);
+
+        try {
+          await runtime.shutdown();
+          resolve();
+        } catch (error) {
+          reject(error);
+        }
+      };
+
+      process.once('SIGINT', handleSignal);
+      process.once('SIGTERM', handleSignal);
+    });
+
     return;
   }
 

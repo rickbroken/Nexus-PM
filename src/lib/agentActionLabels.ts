@@ -24,6 +24,16 @@ const actionTypeLabels: Record<string, string> = {
   nexus_db_update: 'MCP: actualizar base de datos',
   nexus_db_delete: 'MCP: eliminar en base de datos',
   nexus_db_rpc: 'MCP: ejecutar RPC',
+  nexus_backend_schema: 'MCP: inspeccionar esquema backend',
+  nexus_storage_list_buckets: 'MCP: listar buckets de storage',
+  nexus_storage_list_objects: 'MCP: listar archivos de storage',
+  nexus_storage_upload_text: 'MCP: subir archivo de texto a storage',
+  nexus_storage_delete: 'MCP: eliminar archivos de storage',
+  nexus_auth_list_users: 'MCP: listar usuarios auth',
+  nexus_auth_get_user: 'MCP: consultar usuario auth',
+  nexus_auth_create_user: 'MCP: crear usuario auth',
+  nexus_auth_update_user: 'MCP: actualizar usuario auth',
+  nexus_auth_delete_user: 'MCP: eliminar usuario auth',
 };
 
 const statusLabels: Record<AgentAction['status'], string> = {
