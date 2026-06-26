@@ -2,6 +2,7 @@ import { ToolExecutionError } from '../errors.js';
 import type {
   AgentAuditContext,
   AgentServerContext,
+  OpenAiFileIdRefInput,
   OpenAiFileUploadInput,
   StorageDeleteInput,
   StorageDeleteResult,
@@ -45,44 +46,69 @@ function inferDownloadFileName(downloadUrl: string) {
   }
 }
 
-async function resolveTaskAttachmentSource(
-  input: TaskAttachmentUploadInput
-): Promise<{ fileBytes: Buffer; fileName: string; mimeType: string }> {
-  if (input.fileBase64) {
-    return {
-      fileBytes: decodeBase64Payload(input.fileBase64),
-      fileName: input.fileName ?? 'attachment.bin',
-      mimeType: input.mimeType ?? 'application/octet-stream',
-    };
-  }
-
-  const fileRef = input.file as OpenAiFileUploadInput | undefined;
-  if (!fileRef?.download_url) {
-    throw new ToolExecutionError('Debes enviar file o fileBase64 para adjuntar a la tarea.');
-  }
-
-  const response = await fetch(fileRef.download_url);
+async function downloadAttachmentSource(downloadUrl: string) {
+  const response = await fetch(downloadUrl);
   if (!response.ok) {
     throw new ToolExecutionError(`No se pudo descargar el archivo adjunto (${response.status}).`);
   }
 
   const arrayBuffer = await response.arrayBuffer();
-  const fileBytes = Buffer.from(arrayBuffer);
-  const mimeType =
-    input.mimeType ??
-    fileRef.mime_type ??
-    response.headers.get('content-type')?.split(';')[0]?.trim() ??
-    'application/octet-stream';
-  const fileName =
-    input.fileName ??
-    fileRef.file_name ??
-    inferDownloadFileName(fileRef.download_url);
-
   return {
-    fileBytes,
-    fileName,
-    mimeType,
+    fileBytes: Buffer.from(arrayBuffer),
+    responseMimeType: response.headers.get('content-type')?.split(';')[0]?.trim(),
   };
+}
+
+async function resolveTaskAttachmentSource(
+  input: TaskAttachmentUploadInput
+): Promise<Array<{ fileBytes: Buffer; fileName: string; mimeType: string }>> {
+  if (input.fileBase64) {
+    return [{
+      fileBytes: decodeBase64Payload(input.fileBase64),
+      fileName: input.fileName ?? 'attachment.bin',
+      mimeType: input.mimeType ?? 'application/octet-stream',
+    }];
+  }
+
+  const fileRef = input.file as OpenAiFileUploadInput | undefined;
+  if (fileRef?.download_url) {
+    const downloaded = await downloadAttachmentSource(fileRef.download_url);
+    return [{
+      fileBytes: downloaded.fileBytes,
+      mimeType:
+        input.mimeType ??
+        fileRef.mime_type ??
+        downloaded.responseMimeType ??
+        'application/octet-stream',
+      fileName:
+        input.fileName ??
+        fileRef.file_name ??
+        inferDownloadFileName(fileRef.download_url),
+    }];
+  }
+
+  const fileRefs = input.openaiFileIdRefs as OpenAiFileIdRefInput[] | undefined;
+  if (fileRefs?.length) {
+    return Promise.all(
+      fileRefs.map(async (ref, index) => {
+        const downloaded = await downloadAttachmentSource(ref.download_link);
+        return {
+          fileBytes: downloaded.fileBytes,
+          mimeType:
+            (index === 0 ? input.mimeType : undefined) ??
+            ref.mime_type ??
+            downloaded.responseMimeType ??
+            'application/octet-stream',
+          fileName:
+            (index === 0 ? input.fileName : undefined) ??
+            ref.name ??
+            inferDownloadFileName(ref.download_link),
+        };
+      })
+    );
+  }
+
+  throw new ToolExecutionError('Debes enviar file, openaiFileIdRefs o fileBase64 para adjuntar a la tarea.');
 }
 
 export async function listStorageBuckets(
@@ -228,53 +254,66 @@ export async function uploadTaskAttachment(
   input: TaskAttachmentUploadInput,
   audit: AgentAuditContext
 ): Promise<TaskAttachmentUploadResult> {
-  const { fileBytes, fileName, mimeType } = await resolveTaskAttachmentSource(input);
-  const fileSize = fileBytes.byteLength;
-
-  if (fileSize < 1) {
-    throw new ToolExecutionError('El archivo adjunto esta vacio.');
-  }
-
-  if (fileSize > MAX_TASK_ATTACHMENT_BYTES) {
-    throw new ToolExecutionError('El archivo adjunto excede el maximo permitido de 10MB.');
-  }
-
-  const safeFileName = sanitizeAttachmentFileName(fileName);
-  const filePath = `${input.taskId}/${Date.now()}-${crypto.randomUUID()}-${safeFileName}`;
+  const sources = await resolveTaskAttachmentSource(input);
+  const attachments: TaskAttachmentUploadResult['attachments'] = [];
 
   try {
-    const { error: uploadError } = await context.supabaseClient.storage
-      .from(TASK_ATTACHMENTS_BUCKET)
-      .upload(filePath, fileBytes, {
-        contentType: mimeType,
-        upsert: input.upsert ?? false,
-      });
-
-    if (uploadError) {
-      throw new ToolExecutionError(uploadError.message);
-    }
-
     const uploaderIsManager = context.userRole === 'admin' || context.userRole === 'pm';
     const uploaderIsDev = context.userRole === 'dev';
 
-    const { data: attachmentRow, error: attachmentError } = await context.supabaseClient
-      .from('task_attachments')
-      .insert({
-        task_id: input.taskId,
-        file_name: fileName,
-        file_path: filePath,
-        file_size: fileSize,
-        file_type: mimeType,
-        uploaded_by: context.userId,
-        viewed_by_pm: uploaderIsManager,
-        viewed_by_dev: uploaderIsDev,
-      })
-      .select('id')
-      .single();
+    for (const source of sources) {
+      const fileSize = source.fileBytes.byteLength;
+      if (fileSize < 1) {
+        throw new ToolExecutionError('El archivo adjunto esta vacio.');
+      }
 
-    if (attachmentError || !attachmentRow) {
-      await context.supabaseClient.storage.from(TASK_ATTACHMENTS_BUCKET).remove([filePath]);
-      throw new ToolExecutionError(attachmentError?.message ?? 'No se pudo guardar el adjunto.');
+      if (fileSize > MAX_TASK_ATTACHMENT_BYTES) {
+        throw new ToolExecutionError('El archivo adjunto excede el maximo permitido de 10MB.');
+      }
+
+      const safeFileName = sanitizeAttachmentFileName(source.fileName);
+      const filePath = `${input.taskId}/${Date.now()}-${crypto.randomUUID()}-${safeFileName}`;
+
+      const { error: uploadError } = await context.supabaseClient.storage
+        .from(TASK_ATTACHMENTS_BUCKET)
+        .upload(filePath, source.fileBytes, {
+          contentType: source.mimeType,
+          upsert: input.upsert ?? false,
+        });
+
+      if (uploadError) {
+        throw new ToolExecutionError(uploadError.message);
+      }
+
+      const { data: attachmentRow, error: attachmentError } = await context.supabaseClient
+        .from('task_attachments')
+        .insert({
+          task_id: input.taskId,
+          file_name: source.fileName,
+          file_path: filePath,
+          file_size: fileSize,
+          file_type: source.mimeType,
+          uploaded_by: context.userId,
+          viewed_by_pm: uploaderIsManager,
+          viewed_by_dev: uploaderIsDev,
+        })
+        .select('id')
+        .single();
+
+      if (attachmentError || !attachmentRow) {
+        await context.supabaseClient.storage.from(TASK_ATTACHMENTS_BUCKET).remove([filePath]);
+        throw new ToolExecutionError(attachmentError?.message ?? 'No se pudo guardar el adjunto.');
+      }
+
+      attachments.push({
+        attachmentId: attachmentRow.id,
+        taskId: input.taskId,
+        bucket: TASK_ATTACHMENTS_BUCKET,
+        fileName: source.fileName,
+        filePath,
+        fileSize,
+        mimeType: source.mimeType,
+      });
     }
 
     const taskUpdates: Record<string, unknown> = {
@@ -301,28 +340,26 @@ export async function uploadTaskAttachment(
       await logAgentAction(context, {
         action_type: audit.action_type,
         entity_type: 'task_attachment',
-        entity_id: attachmentRow.id,
+        entity_id: attachments[0]?.attachmentId ?? null,
         task_id: input.taskId,
         input_text: audit.input_text ?? null,
         result: {
           bucket: TASK_ATTACHMENTS_BUCKET,
-          file_name: fileName,
-          file_path: filePath,
-          file_size: fileSize,
-          mime_type: mimeType,
+          attachment_count: attachments.length,
+          attachments,
         },
         status: 'success',
       });
     }
 
+    const firstAttachment = attachments[0];
+    if (!firstAttachment) {
+      throw new ToolExecutionError('No se pudo crear ningun adjunto.');
+    }
+
     return {
-      attachmentId: attachmentRow.id,
-      taskId: input.taskId,
-      bucket: TASK_ATTACHMENTS_BUCKET,
-      fileName,
-      filePath,
-      fileSize,
-      mimeType,
+      ...firstAttachment,
+      attachments,
     };
   } catch (error) {
     if (audit.enabled) {

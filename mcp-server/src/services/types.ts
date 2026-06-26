@@ -113,10 +113,18 @@ export const openAiFileUploadSchema = z.object({
   file_name: z.string().trim().min(1).optional(),
 });
 
+export const openAiFileIdRefSchema = z.object({
+  id: z.string().trim().min(1).optional(),
+  name: z.string().trim().min(1).optional(),
+  mime_type: z.string().trim().min(1).optional(),
+  download_link: z.string().url('openaiFileIdRefs[].download_link debe ser una URL valida'),
+});
+
 export const taskAttachmentUploadSchema = z
   .object({
     taskId: z.string().uuid('taskId debe ser un UUID'),
     file: openAiFileUploadSchema.optional(),
+    openaiFileIdRefs: z.array(openAiFileIdRefSchema).min(1).optional(),
     fileName: z.string().trim().min(1).optional(),
     fileBase64: z.string().trim().min(1).optional(),
     mimeType: z.string().trim().min(1).optional(),
@@ -124,19 +132,21 @@ export const taskAttachmentUploadSchema = z
   })
   .superRefine((input, ctx) => {
     const hasFileParam = Boolean(input.file);
+    const hasOpenAiRefs = Boolean(input.openaiFileIdRefs?.length);
     const hasBase64 = Boolean(input.fileBase64);
+    const sourceCount = [hasFileParam, hasOpenAiRefs, hasBase64].filter(Boolean).length;
 
-    if (!hasFileParam && !hasBase64) {
+    if (sourceCount === 0) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: 'Debes enviar file o fileBase64.',
+        message: 'Debes enviar file, openaiFileIdRefs o fileBase64.',
       });
     }
 
-    if (hasFileParam && hasBase64) {
+    if (sourceCount > 1) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: 'Usa file o fileBase64, no ambos al mismo tiempo.',
+        message: 'Usa una sola fuente: file, openaiFileIdRefs o fileBase64.',
       });
     }
 
@@ -223,6 +233,7 @@ export type StorageListBucketsInput = z.infer<typeof storageListBucketsSchema>;
 export type StorageListObjectsInput = z.infer<typeof storageListObjectsSchema>;
 export type StorageUploadTextInput = z.infer<typeof storageUploadTextSchema>;
 export type OpenAiFileUploadInput = z.infer<typeof openAiFileUploadSchema>;
+export type OpenAiFileIdRefInput = z.infer<typeof openAiFileIdRefSchema>;
 export type TaskAttachmentUploadInput = z.infer<typeof taskAttachmentUploadSchema>;
 export type StorageDeleteInput = z.infer<typeof storageDeleteSchema>;
 export type AuthListUsersInput = z.infer<typeof authListUsersSchema>;
@@ -282,6 +293,15 @@ export interface TaskAttachmentUploadResult {
   filePath: string;
   fileSize: number;
   mimeType: string;
+  attachments: Array<{
+    attachmentId: string;
+    taskId: string;
+    bucket: string;
+    fileName: string;
+    filePath: string;
+    fileSize: number;
+    mimeType: string;
+  }>;
 }
 
 export interface StorageDeleteResult {
