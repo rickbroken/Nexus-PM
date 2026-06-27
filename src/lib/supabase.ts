@@ -173,30 +173,6 @@ export interface TaskComment {
   };
 }
 
-export interface ProjectCredential {
-  id: string;
-  project_id: string;
-  name: string;
-  service: string;
-  username?: string;
-  password_encrypted?: string;
-  url?: string;
-  notes?: string;
-  visible_to_devs: boolean;
-  created_by?: string;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface ProjectFinance {
-  id: string;
-  project_id: string;
-  total_value: number;
-  currency: string;
-  created_at: string;
-  updated_at: string;
-}
-
 export interface Payment {
   id: string;
   project_id: string;
@@ -217,19 +193,6 @@ export interface Payment {
   deleted_at?: string;
   deleted_by?: string;
   deleted_reason?: string;
-}
-
-export interface ProjectCost {
-  id: string;
-  project_id: string;
-  description: string;
-  amount: number;
-  category?: string;
-  cost_date: string;
-  is_recurring: boolean;
-  created_by?: string;
-  created_at: string;
-  updated_at: string;
 }
 
 export interface RecurringCharge {

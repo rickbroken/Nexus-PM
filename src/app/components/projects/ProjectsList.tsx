@@ -7,7 +7,6 @@ import Alert from '@/lib/alert';
 import { toast } from 'sonner';
 import { Project, ProjectStatus } from '../../../lib/supabase';
 import { useProjects, useDeleteProject } from '../../../hooks/useProjects';
-import { useProjectStore } from '../../../stores/projectStore';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '../../../lib/supabase';
 import {
@@ -67,7 +66,6 @@ const statusLabels = {
 export function ProjectsList({ onCreateClick, onEditClick }: ProjectsListProps) {
   const { data: projects, isLoading } = useProjects();
   const deleteProject = useDeleteProject();
-  const { setSelectedProject } = useProjectStore();
   const { user } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);

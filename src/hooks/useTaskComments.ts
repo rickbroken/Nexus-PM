@@ -207,13 +207,15 @@ export function useCreateComment() {
       taskId,
       content,
       userId,
-      userRole,
+      _userRole,
     }: {
       taskId: string;
       content: string;
       userId: string;
-      userRole: string;
+      _userRole: string;
     }) => {
+      void _userRole;
+
       // Validar que el contenido no esté vacío
       if (!content.trim()) {
         throw new Error('El comentario no puede estar vacío');
@@ -274,15 +276,17 @@ export function useUpdateComment() {
   return useMutation({
     mutationFn: async ({
       commentId,
-      taskId,
+      _taskId,
       content,
       userId,
     }: {
       commentId: string;
-      taskId: string;
+      _taskId: string;
       content: string;
       userId: string;
     }) => {
+      void _taskId;
+
       // Validar que el contenido no esté vacío
       if (!content.trim()) {
         throw new Error('El comentario no puede estar vacío');

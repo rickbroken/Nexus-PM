@@ -45,25 +45,6 @@ export function useProjects() {
   });
 }
 
-export function useProject(id: string | undefined) {
-  return useQuery({
-    queryKey: ['projects', id],
-    queryFn: async () => {
-      if (!id) return null;
-      
-      const { data, error } = await supabase
-        .from('projects')
-        .select('*, client:clients(*)')
-        .eq('id', id)
-        .single();
-
-      if (error) throw error;
-      return data as Project;
-    },
-    enabled: !!id,
-  });
-}
-
 export function useCreateProject() {
   const queryClient = useQueryClient();
 
@@ -140,7 +121,7 @@ export function useUpdateProject() {
       console.log('Project updated successfully:', data);
       return data;
     },
-    onSuccess: (_, variables) => {
+    onSuccess: () => {
       // Invalidar todas las queries de proyectos (con cualquier userId/role)
       queryClient.invalidateQueries({ queryKey: ['projects'], exact: false });
       toast.success('Proyecto actualizado exitosamente');

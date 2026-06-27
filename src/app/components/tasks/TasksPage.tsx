@@ -23,7 +23,7 @@ export function TasksPage() {
   const location = useLocation();
   const [formOpen, setFormOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
-  const [detailModalOpen, setDetailModalOpen] = useState(false);
+  const [, setDetailModalOpen] = useState(false);
   const [observationsMode, setObservationsMode] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>('kanban'); // Estado para cambiar entre vistas
   const deleteTask = useDeleteTask();

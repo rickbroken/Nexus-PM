@@ -43,25 +43,6 @@ export function useTasks(projectId?: string, includeArchived = false) {
   });
 }
 
-export function useTask(id: string | undefined) {
-  return useQuery({
-    queryKey: ['tasks', id],
-    queryFn: async () => {
-      if (!id) return null;
-      
-      const { data, error } = await supabase
-        .from('tasks')
-        .select('*, project:projects(*), assignee:users_profiles!assigned_to(*)')
-        .eq('id', id)
-        .single();
-
-      if (error) throw error;
-      return data as Task;
-    },
-    enabled: !!id,
-  });
-}
-
 export function useCreateTask() {
   const queryClient = useQueryClient();
 

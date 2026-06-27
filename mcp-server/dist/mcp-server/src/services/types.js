@@ -1,6 +1,6 @@
 import { z } from 'zod';
 export const PROTECTED_READ_TABLES = ['project_credentials'];
-export const PROTECTED_WRITE_TABLES = ['agent_actions', 'project_credentials'];
+export const PROTECTED_WRITE_TABLES = ['agent_actions', 'project_credentials', 'task_attachments'];
 export const AUTH_BLOCKED_DB_TABLES = ['auth.users'];
 export const MAX_SELECT_LIMIT = 100;
 export const MAX_SCHEMA_ITEMS = 200;
@@ -66,12 +66,63 @@ export const storageUploadTextSchema = z.object({
     contentType: z.string().trim().optional(),
     upsert: z.boolean().optional().default(true),
 });
-export const taskAttachmentUploadSchema = z.object({
+export const openAiFileUploadSchema = z.object({
+    download_url: z.string().url('file.download_url debe ser una URL valida'),
+    file_id: z.string().trim().min(1).optional(),
+    mime_type: z.string().trim().min(1).optional(),
+    file_name: z.string().trim().min(1).optional(),
+});
+export const openAiFileIdRefSchema = z.object({
+    id: z.string().trim().min(1).optional(),
+    name: z.string().trim().min(1).optional(),
+    mime_type: z.string().trim().min(1).optional(),
+    download_link: z.string().url('openaiFileIdRefs[].download_link debe ser una URL valida'),
+});
+export const taskAttachmentUploadSchema = z
+    .object({
     taskId: z.string().uuid('taskId debe ser un UUID'),
-    fileName: z.string().trim().min(1, 'fileName es obligatorio'),
-    fileBase64: z.string().trim().min(1, 'fileBase64 es obligatorio'),
-    mimeType: z.string().trim().min(1, 'mimeType es obligatorio'),
+    file: openAiFileUploadSchema.optional(),
+    openaiFileIdRefs: z.array(openAiFileIdRefSchema).min(1).optional(),
+    fileName: z.string().trim().min(1).optional(),
+    fileBase64: z.string().trim().min(1).optional(),
+    mimeType: z.string().trim().min(1).optional(),
     upsert: z.boolean().optional().default(false),
+})
+    .superRefine((input, ctx) => {
+    const hasFileParam = Boolean(input.file);
+    const hasOpenAiRefs = Boolean(input.openaiFileIdRefs?.length);
+    const hasBase64 = Boolean(input.fileBase64);
+    const sourceCount = [hasFileParam, hasOpenAiRefs, hasBase64].filter(Boolean).length;
+    if (sourceCount === 0) {
+        ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'Debes enviar file, openaiFileIdRefs o fileBase64.',
+        });
+    }
+    if (sourceCount > 1) {
+        ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'Usa una sola fuente: file, openaiFileIdRefs o fileBase64.',
+        });
+    }
+    if (hasBase64 && !input.fileName) {
+        ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'fileName es obligatorio cuando usas fileBase64.',
+            path: ['fileName'],
+        });
+    }
+    if (hasBase64 && !input.mimeType) {
+        ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'mimeType es obligatorio cuando usas fileBase64.',
+            path: ['mimeType'],
+        });
+    }
+});
+export const taskAttachmentDeleteSchema = z.object({
+    attachmentId: z.string().uuid('attachmentId debe ser un UUID'),
+    confirm: z.boolean(),
 });
 export const storageDeleteSchema = z.object({
     bucket: z.string().trim().min(1, 'bucket es obligatorio'),

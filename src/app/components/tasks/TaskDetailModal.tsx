@@ -6,7 +6,6 @@ import { Task, supabase } from '../../../lib/supabase';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { Separator } from '../ui/separator';
-import { Avatar, AvatarFallback } from '../ui/avatar';
 import { 
   User, 
   FolderKanban, 
@@ -407,11 +406,7 @@ export function TaskDetailModal({
 
           {/* Comentarios */}
           <Separator className="my-6" />
-          <TaskComments 
-            taskId={task.id} 
-            taskAssignedTo={task.assigned_to}
-            taskCreatedBy={task.created_by}
-          />
+          <TaskComments taskId={task.id} />
 
           {/* Etiquetas */}
           <Separator className="my-6" />

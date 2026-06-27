@@ -156,7 +156,7 @@ async function getPostgrestOpenApi() {
   return cachedOpenApi;
 }
 
-async function getPublicTableNames(context: AgentServerContext) {
+async function getPublicTableNames() {
   const openApi = await getPostgrestOpenApi();
   const tableNames = Object.keys(openApi.paths ?? {})
     .filter((path) => /^\/[a-zA-Z_][a-zA-Z0-9_]*$/.test(path))
@@ -165,7 +165,7 @@ async function getPublicTableNames(context: AgentServerContext) {
   return new Set(tableNames);
 }
 
-async function getPublicFunctionNames(context: AgentServerContext) {
+async function getPublicFunctionNames() {
   const openApi = await getPostgrestOpenApi();
   const functionNames = Object.keys(openApi.paths ?? {})
     .filter((path) => path.startsWith('/rpc/'))
@@ -174,21 +174,21 @@ async function getPublicFunctionNames(context: AgentServerContext) {
   return new Set(functionNames);
 }
 
-async function getPublicTableColumns(context: AgentServerContext, table: string) {
+async function getPublicTableColumns(table: string) {
   const openApi = await getPostgrestOpenApi();
   const definition = openApi.definitions?.[table];
   const properties = definition?.properties ?? {};
   return new Set(Object.keys(properties));
 }
 
-async function ensurePublicTableAllowed(context: AgentServerContext, table: string) {
+async function ensurePublicTableAllowed(table: string) {
   const normalizedTable = normalizePublicTableName(table);
 
   if (AUTH_BLOCKED_DB_TABLES.includes(table as never) || AUTH_BLOCKED_DB_TABLES.includes(normalizedTable as never)) {
     throw new ToolExecutionError(`La tabla ${table} no se puede operar desde las tools genericas.`);
   }
 
-  const publicTables = await getPublicTableNames(context);
+  const publicTables = await getPublicTableNames();
   if (!publicTables.has(normalizedTable)) {
     throw new ToolExecutionError(`La tabla public.${normalizedTable} no existe o no esta expuesta.`);
   }
@@ -257,7 +257,7 @@ async function sanitizeInsertData(
   }
 
   const payload = { ...data };
-  const columns = await getPublicTableColumns(context, table);
+  const columns = await getPublicTableColumns(table);
   enforceActorColumns(payload, columns, context, 'insert');
 
   return payload;
@@ -273,7 +273,7 @@ async function sanitizeUpdateData(
   }
 
   const payload = { ...data };
-  const columns = await getPublicTableColumns(context, table);
+  const columns = await getPublicTableColumns(table);
   enforceActorColumns(payload, columns, context, 'update');
 
   return payload;
@@ -342,7 +342,7 @@ export async function selectRows(
   audit: AgentAuditContext
 ): Promise<DatabaseSelectResult> {
   try {
-    const table = await ensurePublicTableAllowed(context, input.table);
+    const table = await ensurePublicTableAllowed(input.table);
     ensureTableReadAllowed(table);
     const columns = sanitizeColumns(input.columns);
     const limit = Math.min(input.limit ?? 20, MAX_SELECT_LIMIT);
@@ -385,7 +385,7 @@ export async function insertRow(
   audit: AgentAuditContext
 ): Promise<DatabaseMutationResult> {
   try {
-    const table = await ensurePublicTableAllowed(context, input.table);
+    const table = await ensurePublicTableAllowed(input.table);
     ensureGenericAgentActionsWriteBlocked(table);
     ensureTableWriteAllowed(table, 'insert');
 
@@ -429,7 +429,7 @@ export async function updateRows(
   audit: AgentAuditContext
 ): Promise<DatabaseMutationResult> {
   try {
-    const table = await ensurePublicTableAllowed(context, input.table);
+    const table = await ensurePublicTableAllowed(input.table);
     ensureGenericAgentActionsWriteBlocked(table);
     ensureTableWriteAllowed(table, 'update');
     ensureNonEmptyFilters(input.filters, 'update');
@@ -468,7 +468,7 @@ export async function deleteRows(
   audit: AgentAuditContext
 ): Promise<DatabaseMutationResult> {
   try {
-    const table = await ensurePublicTableAllowed(context, input.table);
+    const table = await ensurePublicTableAllowed(input.table);
     ensureGenericAgentActionsWriteBlocked(table);
     ensureTableWriteAllowed(table, 'delete');
     ensureNonEmptyFilters(input.filters, 'delete');
@@ -512,7 +512,7 @@ export async function executeRpc(
 ): Promise<DatabaseRpcResult> {
   try {
     const functionName = normalizePublicFunctionName(input.functionName);
-    const publicFunctions = await getPublicFunctionNames(context);
+    const publicFunctions = await getPublicFunctionNames();
     if (!publicFunctions.has(functionName)) {
       throw new ToolExecutionError(`La funcion public.${functionName} no existe o no esta expuesta.`);
     }

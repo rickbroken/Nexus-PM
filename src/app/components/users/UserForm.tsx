@@ -23,7 +23,6 @@ const createUserSchema = userProfileSchema.extend({
   password: z.string().min(6, 'La contraseña debe tener al menos 6 caracteres'),
 });
 
-type UserFormData = z.infer<typeof userProfileSchema>;
 type CreateUserFormData = z.infer<typeof createUserSchema>;
 
 interface UserFormProps {

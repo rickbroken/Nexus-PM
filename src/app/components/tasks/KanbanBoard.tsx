@@ -6,7 +6,7 @@ import { useDrag, useDrop } from 'react-dnd';
 import { useTasks, useUpdateTask } from '../../../hooks/useTasks';
 import { Task, TaskStatus } from '../../../lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
-import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
+import { Card, CardContent } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { Avatar, AvatarFallback } from '../ui/avatar';
 import { Clock, AlertCircle, User, CheckCircle2, XCircle, MessageSquare, Paperclip } from 'lucide-react';
@@ -380,7 +380,7 @@ export function KanbanBoard({ projectId, onTaskClick }: KanbanBoardProps) {
     rejectionReason: '',
   });
 
-  const handleRequestRejection = (taskId: string, targetColumn: TaskStatus) => {
+  const handleRequestRejection = (taskId: string, _targetColumn: TaskStatus) => {
     setRejectionDialog({
       open: true,
       taskId,

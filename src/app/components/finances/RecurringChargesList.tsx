@@ -78,11 +78,6 @@ export function RecurringChargesList() {
     return `${days} días`;
   };
 
-  const handleEdit = (charge: RecurringCharge) => {
-    setSelectedCharge(charge);
-    setFormOpen(true);
-  };
-
   const handleCreate = () => {
     setSelectedCharge(null);
     setFormOpen(true);

@@ -14,14 +14,11 @@ import {
 } from '@/hooks/useTaskAttachments';
 import { Button } from '../ui/button';
 import { Separator } from '../ui/separator';
-import { Badge } from '../ui/badge';
 import { 
   Paperclip, 
   Upload, 
   Download, 
   Trash2, 
-  Eye,
-  X,
   Loader2,
   File,
   Check

@@ -221,7 +221,7 @@ export function ProjectForm({ open, onClose, project }: ProjectFormProps) {
       };
 
       if (project?.id) {
-        const result = await updateProject.mutateAsync({ id: project.id, ...cleanData });
+        await updateProject.mutateAsync({ id: project.id, ...cleanData });
         
         // Update project members (developers)
         try {

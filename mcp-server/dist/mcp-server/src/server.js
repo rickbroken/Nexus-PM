@@ -12,6 +12,7 @@ export function createNexusMcpServer() {
         const toolConfig = {
             description: tool.description,
             inputSchema: runtimeSchema.shape,
+            _meta: tool.meta,
         };
         server.registerTool(tool.name, toolConfig, async (input) => {
             const result = await dispatchTool(tool.name, input);

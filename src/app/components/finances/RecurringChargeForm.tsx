@@ -1,7 +1,7 @@
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { recurringChargeSchema, RecurringChargeFormData } from '@/lib/validations';
-import { useCreateRecurringCharge, useUpdateRecurringCharge } from '@/hooks/useFinances';
+import { useCreateRecurringCharge } from '@/hooks/useFinances';
 import { useProjects } from '@/hooks/useProjects';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -36,8 +36,6 @@ interface RecurringChargeFormProps {
 export function RecurringChargeForm({ open, onClose, charge }: RecurringChargeFormProps) {
   const { data: projects } = useProjects();
   const createCharge = useCreateRecurringCharge();
-  const updateCharge = useUpdateRecurringCharge();
-
   const {
     register,
     handleSubmit,

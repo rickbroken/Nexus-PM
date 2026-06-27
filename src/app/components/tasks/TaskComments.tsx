@@ -13,18 +13,15 @@ import {
 import { Button } from '../ui/button';
 import { Textarea } from '../ui/textarea';
 import { Avatar, AvatarFallback } from '../ui/avatar';
-import { Separator } from '../ui/separator';
 import { MessageSquare, Send, Edit2, Trash2, Check, CheckCheck, X } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { useViewingTaskStore } from '@/stores/useViewingTaskStore';
 
 interface TaskCommentsProps {
   taskId: string;
-  taskAssignedTo?: string;
-  taskCreatedBy?: string;
 }
 
-export function TaskComments({ taskId, taskAssignedTo, taskCreatedBy }: TaskCommentsProps) {
+export function TaskComments({ taskId }: TaskCommentsProps) {
   const { user } = useAuth();
   const [newComment, setNewComment] = useState('');
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
@@ -254,8 +251,6 @@ export function TaskComments({ taskId, taskAssignedTo, taskCreatedBy }: TaskComm
             // Verificar si el mensaje anterior es del mismo autor
             const previousComment = index > 0 ? comments[index - 1] : null;
             const isFirstInGroup = !previousComment || previousComment.user_id !== comment.user_id;
-            const isLastInGroup = index === comments.length - 1 || comments[index + 1]?.user_id !== comment.user_id;
-
             return (
               <div
                 key={comment.id}

@@ -72,33 +72,3 @@ export function useAddProjectMembers() {
   });
 }
 
-export function useRemoveProjectMember() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async ({ 
-      projectId, 
-      userId 
-    }: { 
-      projectId: string; 
-      userId: string;
-    }) => {
-      const { error } = await supabase
-        .from('project_members')
-        .delete()
-        .eq('project_id', projectId)
-        .eq('user_id', userId);
-
-      if (error) throw error;
-    },
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['project-members', variables.projectId] });
-      queryClient.invalidateQueries({ queryKey: ['projects'], exact: false });
-      toast.success('Miembro eliminado del proyecto');
-    },
-    onError: (error: any) => {
-      console.error('Error removing project member:', error);
-      toast.error('Error al eliminar miembro del proyecto');
-    },
-  });
-}

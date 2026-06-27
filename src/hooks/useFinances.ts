@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase, Payment, ProjectCost, RecurringCharge, PaymentMethod } from '../lib/supabase';
+import { supabase, Payment, RecurringCharge, PaymentMethod } from '../lib/supabase';
 import { toast } from 'sonner';
 import Swal from 'sweetalert2';
 import { useAuthStore } from '../stores/authStore';
@@ -41,31 +41,6 @@ export function usePayments(projectId?: string) {
     // Evitar queries colgadas
     staleTime: 3 * 60 * 1000, // 3 minutos
     gcTime: 5 * 60 * 1000, // 5 minutos
-  });
-}
-
-// Hook para obtener el historial de pagos eliminados
-export function useDeletedPayments(projectId?: string) {
-  return useQuery({
-    queryKey: ['deleted-payments', projectId],
-    queryFn: async () => {
-      let query = supabase
-        .from('payments')
-        .select('*')
-        .not('deleted_at', 'is', null) // Solo mostrar pagos eliminados
-        .order('deleted_at', { ascending: false });
-
-      if (projectId) {
-        query = query.eq('project_id', projectId);
-      }
-
-      const { data, error } = await query;
-
-      if (error) throw error;
-      return data as Payment[];
-    },
-    staleTime: 3 * 60 * 1000,
-    gcTime: 5 * 60 * 1000,
   });
 }
 
@@ -123,150 +98,6 @@ export function useUpdatePayment() {
         icon: 'error',
         title: 'Error',
         text: error.message || 'No se pudo actualizar el pago',
-      });
-    },
-  });
-}
-
-export function useDeletePayment() {
-  const queryClient = useQueryClient();
-  const { user } = useAuthStore();
-
-  return useMutation({
-    mutationFn: async ({ id, reason }: { id: string; reason: string }) => {
-      const { error } = await supabase
-        .from('payments')
-        .update({ 
-          deleted_at: new Date().toISOString(),
-          deleted_by: user?.id || null,
-          deleted_reason: reason
-        })
-        .eq('id', id);
-
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['payments'] });
-      queryClient.invalidateQueries({ queryKey: ['deleted-payments'] });
-      toast.success('Pago movido al historial exitosamente');
-    },
-    onError: (error: any) => {
-      console.error('Error deleting payment:', error);
-      Swal.fire({
-        icon: 'error',
-        title: 'Error',
-        text: error.message || 'No se pudo eliminar el pago',
-      });
-    },
-  });
-}
-
-// Hook para restaurar un pago eliminado
-export function useRestorePayment() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from('payments')
-        .update({ deleted_at: null, deleted_by: null })
-        .eq('id', id);
-
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['payments'] });
-      queryClient.invalidateQueries({ queryKey: ['deleted-payments'] });
-      toast.success('Pago restaurado exitosamente');
-    },
-    onError: (error: any) => {
-      console.error('Error restoring payment:', error);
-      Swal.fire({
-        icon: 'error',
-        title: 'Error',
-        text: error.message || 'No se pudo restaurar el pago',
-      });
-    },
-  });
-}
-
-// Hook para eliminar permanentemente un pago (hard delete)
-export function usePermanentDeletePayment() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from('payments')
-        .delete()
-        .eq('id', id);
-
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['deleted-payments'] });
-      toast.success('Pago eliminado permanentemente');
-    },
-    onError: (error: any) => {
-      console.error('Error permanently deleting payment:', error);
-      Swal.fire({
-        icon: 'error',
-        title: 'Error',
-        text: error.message || 'No se pudo eliminar el pago permanentemente',
-      });
-    },
-  });
-}
-
-// Project Costs
-export function useProjectCosts(projectId?: string) {
-  return useQuery({
-    queryKey: ['project-costs', projectId],
-    queryFn: async () => {
-      let query = supabase
-        .from('project_costs')
-        .select('*')
-        .order('cost_date', { ascending: false });
-
-      if (projectId) {
-        query = query.eq('project_id', projectId);
-      }
-
-      const { data, error } = await query;
-
-      if (error) throw error;
-      return data as ProjectCost[];
-    },
-    // Evitar queries colgadas
-    staleTime: 3 * 60 * 1000, // 3 minutos
-    gcTime: 5 * 60 * 1000, // 5 minutos
-  });
-}
-
-export function useCreateProjectCost() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (newCost: Partial<ProjectCost>) => {
-      const { data, error } = await supabase
-        .from('project_costs')
-        .insert([newCost])
-        .select()
-        .single();
-
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['project-costs'] });
-      toast.success('Costo registrado exitosamente');
-    },
-    onError: (error: any) => {
-      console.error('Error creating cost:', error);
-      Swal.fire({
-        icon: 'error',
-        title: 'Error',
-        text: error.message || 'No se pudo registrar el costo',
       });
     },
   });
@@ -353,37 +184,6 @@ export function useCreateRecurringCharge() {
   });
 }
 
-export function useUpdateRecurringCharge() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async ({ id, ...updates }: Partial<RecurringCharge> & { id: string }) => {
-      const { data, error } = await supabase
-        .from('recurring_charges')
-        .update(updates)
-        .eq('id', id)
-        .select('*, project:projects(*)')
-        .single();
-
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['recurring-charges'] });
-      const typeLabel = data.type === 'expense' ? 'Pago recurrente' : 'Cobro recurrente';
-      toast.success(`${typeLabel} actualizado exitosamente`);
-    },
-    onError: (error: any) => {
-      console.error('Error updating recurring charge:', error);
-      Swal.fire({
-        icon: 'error',
-        title: 'Error',
-        text: error.message || 'No se pudo actualizar el cobro recurrente',
-      });
-    },
-  });
-}
-
 export function useDeleteRecurringCharge() {
   const queryClient = useQueryClient();
   const { user } = useAuthStore();
@@ -412,63 +212,6 @@ export function useDeleteRecurringCharge() {
         icon: 'error',
         title: 'Error',
         text: error.message || 'No se pudo anular el cobro recurrente',
-      });
-    },
-  });
-}
-
-// Hook para restaurar un cobro recurrente anulado
-export function useRestoreRecurringCharge() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from('recurring_charges')
-        .update({ cancelled_at: null, cancelled_by: null, cancelled_reason: null })
-        .eq('id', id);
-
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['recurring-charges'] });
-      queryClient.invalidateQueries({ queryKey: ['cancelled-recurring-charges'] });
-      toast.success('Cobro recurrente restaurado exitosamente');
-    },
-    onError: (error: any) => {
-      console.error('Error restoring recurring charge:', error);
-      Swal.fire({
-        icon: 'error',
-        title: 'Error',
-        text: error.message || 'No se pudo restaurar el cobro recurrente',
-      });
-    },
-  });
-}
-
-// Hook para eliminar permanentemente un cobro recurrente (hard delete)
-export function usePermanentDeleteRecurringCharge() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from('recurring_charges')
-        .delete()
-        .eq('id', id);
-
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['cancelled-recurring-charges'] });
-      toast.success('Cobro recurrente eliminado permanentemente');
-    },
-    onError: (error: any) => {
-      console.error('Error permanently deleting recurring charge:', error);
-      Swal.fire({
-        icon: 'error',
-        title: 'Error',
-        text: error.message || 'No se pudo eliminar el cobro recurrente permanentemente',
       });
     },
   });

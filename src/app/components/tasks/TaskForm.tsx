@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -59,7 +59,6 @@ export function TaskForm({ open, onClose, task, defaultProjectId, observationsMo
 
   // Determinar si el developer puede editar la tarea completa
   // Solo puede editar si él creó la tarea, de lo contrario solo puede agregar observaciones
-  const isDevCreator = user?.role === 'dev' && task?.created_by === user?.id;
   const isDevAddingNotes = observationsMode && user?.role === 'dev' && !!task;
 
   // Fetch users for assignment - PM solo ve developers

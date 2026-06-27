@@ -139,6 +139,9 @@ function ensureTableReadAllowed(table) {
     }
 }
 function ensureTableWriteAllowed(table, action) {
+    if (table === 'task_attachments') {
+        throw new ToolExecutionError('La tabla task_attachments esta protegida para escritura generica. Usa nexus_task_attachment_upload para adjuntar archivos.');
+    }
     if (PROTECTED_WRITE_TABLES.includes(table)) {
         throw new ToolExecutionError(`La tabla ${table} esta protegida para ${action}.`);
     }

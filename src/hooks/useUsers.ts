@@ -23,25 +23,6 @@ export function useUsers() {
   });
 }
 
-export function useUser(id: string | undefined) {
-  return useQuery({
-    queryKey: ['users', id],
-    queryFn: async () => {
-      if (!id) return null;
-
-      const { data, error } = await supabase
-        .from('users_profiles')
-        .select('*')
-        .eq('id', id)
-        .single();
-
-      if (error) throw error;
-      return data as UserProfile;
-    },
-    enabled: !!id,
-  });
-}
-
 interface CreateUserData {
   email: string;
   password: string;
@@ -145,31 +126,3 @@ export function useUpdateUserProfile() {
   });
 }
 
-export function useDeleteUser() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (id: string) => {
-      // Note: Deleting users from auth.users requires admin privileges
-      // This will only delete the profile, not the auth user
-      const { error } = await supabase
-        .from('users_profiles')
-        .delete()
-        .eq('id', id);
-
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['users'] });
-      toast.success('Usuario eliminado exitosamente');
-    },
-    onError: (error: any) => {
-      console.error('Error deleting user:', error);
-      Swal.fire({
-        icon: 'error',
-        title: 'Error',
-        text: error.message || 'No se pudo eliminar el usuario',
-      });
-    },
-  });
-}

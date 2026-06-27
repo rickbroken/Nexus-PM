@@ -1,7 +1,6 @@
 import { useState, useMemo } from 'react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { parseLocalDate } from '../../utils/dateHelpers';
 import { useTasks } from '../../../hooks/useTasks';
 import { Task } from '../../../lib/supabase';
 import { useProjects } from '../../../hooks/useProjects';

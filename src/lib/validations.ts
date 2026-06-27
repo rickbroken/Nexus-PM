@@ -76,13 +76,6 @@ export const credentialSchema = z.object({
   visible_to_devs: z.boolean().default(false),
 });
 
-// Finance validations
-export const projectFinanceSchema = z.object({
-  project_id: z.string().uuid(),
-  total_value: z.number().min(0),
-  currency: z.string().default('USD'),
-});
-
 export const paymentSchema = z.object({
   project_id: z.string().uuid(),
   amount: z.number().min(0.01, 'Monto debe ser mayor a 0'),

@@ -1,5 +1,5 @@
-import { createAuthUser, deleteRows, deleteAuthUser, deleteStorageObjects, executeRpc, getAuthUser, getBackendSchema, insertRow, listAuthUsers, listStorageBuckets, listStorageObjects, selectRows, uploadTaskAttachment, updateAuthUser, updateRows, uploadStorageText, } from '../services/index.js';
-import { authCreateUserSchema, authDeleteUserSchema, authGetUserSchema, authListUsersSchema, authUpdateUserSchema, backendSchemaSchema, dbDeleteSchema, dbInsertSchema, dbRpcSchema, dbSelectSchema, dbUpdateSchema, storageDeleteSchema, storageListBucketsSchema, storageListObjectsSchema, taskAttachmentUploadSchema, storageUploadTextSchema, } from './toolSchemas.js';
+import { createAuthUser, deleteTaskAttachment, deleteRows, deleteAuthUser, deleteStorageObjects, executeRpc, getAuthUser, getBackendSchema, insertRow, listAuthUsers, listStorageBuckets, listStorageObjects, selectRows, uploadTaskAttachment, updateAuthUser, updateRows, uploadStorageText, } from '../services/index.js';
+import { authCreateUserSchema, authDeleteUserSchema, authGetUserSchema, authListUsersSchema, authUpdateUserSchema, backendSchemaSchema, dbDeleteSchema, dbInsertSchema, dbRpcSchema, dbSelectSchema, dbUpdateSchema, storageDeleteSchema, storageListBucketsSchema, storageListObjectsSchema, taskAttachmentDeleteSchema, taskAttachmentUploadSchema, storageUploadTextSchema, } from './toolSchemas.js';
 export async function handleBackendSchemaTool({ context, input }) {
     const parsed = backendSchemaSchema.parse(input ?? {});
     return getBackendSchema(context, parsed, {
@@ -91,6 +91,19 @@ export async function handleTaskAttachmentUploadTool({ context, input }) {
         input_text: 'mcp:nexus_task_attachment_upload',
     });
 }
+export async function handleAttachFileToTaskTool(input) {
+    return handleTaskAttachmentUploadTool(input);
+}
+export async function handleDeleteTaskAttachmentTool({ context, input }) {
+    const parsed = taskAttachmentDeleteSchema.parse(input);
+    return deleteTaskAttachment(context, parsed, {
+        enabled: true,
+        action_type: 'nexus_delete_task_attachment',
+        entity_type: 'task_attachment',
+        entity_id: parsed.attachmentId,
+        input_text: 'mcp:nexus_delete_task_attachment',
+    });
+}
 export async function handleStorageDeleteTool({ context, input }) {
     const parsed = storageDeleteSchema.parse(input);
     return deleteStorageObjects(context, parsed, {
@@ -159,6 +172,8 @@ export const mcpToolHandlers = {
     nexus_storage_list_objects: handleStorageListObjectsTool,
     nexus_storage_upload_text: handleStorageUploadTextTool,
     nexus_task_attachment_upload: handleTaskAttachmentUploadTool,
+    nexus_attach_file_to_task: handleAttachFileToTaskTool,
+    nexus_delete_task_attachment: handleDeleteTaskAttachmentTool,
     nexus_storage_delete: handleStorageDeleteTool,
     nexus_auth_list_users: handleAuthListUsersTool,
     nexus_auth_get_user: handleAuthGetUserTool,

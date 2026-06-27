@@ -1,5 +1,4 @@
 import { useMemo } from 'react';
-import { Task } from '../../../lib/supabase';
 import { isDateOverdue } from '../../utils/dateHelpers';
 import { useTasks } from '../../../hooks/useTasks';
 

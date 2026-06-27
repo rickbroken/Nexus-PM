@@ -40,14 +40,3 @@ export function getInitials(name: string): string {
     .toUpperCase()
     .slice(0, 2);
 }
-
-export function getDaysUntil(date: string | Date): number {
-  const targetDate = new Date(date);
-  const today = new Date();
-  const diffTime = targetDate.getTime() - today.getTime();
-  return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-}
-
-export function isOverdue(date: string | Date): boolean {
-  return getDaysUntil(date) < 0;
-}

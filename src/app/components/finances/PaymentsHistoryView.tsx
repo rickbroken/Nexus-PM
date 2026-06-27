@@ -18,20 +18,6 @@ import Swal from 'sweetalert2';
 import { LoadingSpinner } from '../ui/loading-spinner';
 import { formatCurrency } from '@/lib/formatters';
 
-const statusColors = {
-  pending: 'bg-yellow-100 text-yellow-800',
-  paid: 'bg-green-100 text-green-800',
-  overdue: 'bg-red-100 text-red-800',
-  cancelled: 'bg-gray-100 text-gray-800',
-};
-
-const statusLabels = {
-  pending: 'Pendiente',
-  paid: 'Pagado',
-  overdue: 'Vencido',
-  cancelled: 'Cancelado',
-};
-
 const typeLabels: Record<PaymentType, string> = {
   income: '💰 Ingreso',
   expense: '💸 Egreso',

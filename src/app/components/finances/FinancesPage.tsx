@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { PaymentsList } from './PaymentsList';
 import { RecurringChargesList } from './RecurringChargesList';

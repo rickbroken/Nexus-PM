@@ -21,25 +21,6 @@ export function useClients() {
   });
 }
 
-export function useClient(id: string | undefined) {
-  return useQuery({
-    queryKey: ['clients', id],
-    queryFn: async () => {
-      if (!id) return null;
-      
-      const { data, error } = await supabase
-        .from('clients')
-        .select('*')
-        .eq('id', id)
-        .single();
-
-      if (error) throw error;
-      return data as Client;
-    },
-    enabled: !!id,
-  });
-}
-
 export function useCreateClient() {
   const queryClient = useQueryClient();
 

@@ -195,7 +195,7 @@ export function useMarkAllAsRead() {
       toast.success('Todas las notificaciones marcadas como leídas');
       // NO invalidamos aquí - la actualización optimista es suficiente
     },
-    onError: (error: any, variables, context) => {
+    onError: (error: any, _variables, context) => {
       console.error('[useMarkAllAsRead] Error marking all as read:', error);
       // Rollback en caso de error
       if (context?.previousNotifications) {
@@ -359,7 +359,7 @@ export function useDeleteAllRead() {
       toast.success('Notificaciones leídas eliminadas');
       // NO invalidamos aquí - la actualización optimista es suficiente
     },
-    onError: (error: any, variables, context) => {
+    onError: (error: any, _variables, context) => {
       console.error('[useDeleteAllRead] Error deleting all read:', error);
       // Rollback en caso de error
       if (context?.previousNotifications) {
