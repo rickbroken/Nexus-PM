@@ -51,6 +51,10 @@ export function ArchivedTasksTable({ onTaskClick }: ArchivedTasksTableProps) {
   const { data: allTasks, isLoading } = useTasks(undefined, true); // Traer todas las tareas incluyendo archivadas
   const { data: projects } = useProjects();
   const { data: users } = useUsers();
+  const activeDevelopers = useMemo(
+    () => users?.filter((user) => user.role === 'dev' && user.is_active) ?? [],
+    [users]
+  );
 
   // Filtrar solo las archivadas
   const archivedTasks = useMemo(() => {
@@ -188,9 +192,7 @@ export function ArchivedTasksTable({ onTaskClick }: ArchivedTasksTableProps) {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos los developers</SelectItem>
-                  {users
-                    ?.filter((user) => user.role === 'dev')
-                    .map((user) => (
+                  {activeDevelopers.map((user) => (
                       <SelectItem key={user.id} value={user.id}>
                         {user.full_name}
                       </SelectItem>

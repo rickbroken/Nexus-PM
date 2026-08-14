@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -82,6 +82,16 @@ export function ProjectForm({ open, onClose, project }: ProjectFormProps) {
   const [selectedTech, setSelectedTech] = useState<string>('');
   const [customTech, setCustomTech] = useState<string>('');
   const [selectedDevelopers, setSelectedDevelopers] = useState<string[]>([]);
+
+  const activeDevelopers = useMemo(
+    () => users?.filter((user) => user.role === 'dev' && user.is_active) ?? [],
+    [users]
+  );
+
+  const activeDeveloperIds = useMemo(
+    () => new Set(activeDevelopers.map((developer) => developer.id)),
+    [activeDevelopers]
+  );
 
   const commonTechnologies = [
     'Angular', 'AWS', 'Azure', 'Bootstrap', 'C#', 'Chakra UI', 'Django', 
@@ -193,13 +203,19 @@ export function ProjectForm({ open, onClose, project }: ProjectFormProps) {
   // Load assigned developers when projectMembers data is available
   useEffect(() => {
     if (project?.id && projectMembers) {
-      const developerIds = projectMembers.map(m => m.user_id);
+      const developerIds = projectMembers
+        .map(m => m.user_id)
+        .filter((userId) => activeDeveloperIds.has(userId));
       setSelectedDevelopers(developerIds);
     }
-  }, [projectMembers, project?.id]);
+  }, [projectMembers, project?.id, activeDeveloperIds]);
 
   const onSubmit = async (data: ProjectFormData) => {
     try {
+      const assignableDeveloperIds = selectedDevelopers.filter((userId) =>
+        activeDeveloperIds.has(userId)
+      );
+
       // Clean up empty strings to null for optional fields
       const cleanData = {
         name: data.name,
@@ -227,7 +243,7 @@ export function ProjectForm({ open, onClose, project }: ProjectFormProps) {
         try {
           await addProjectMembers.mutateAsync({
             projectId: project.id,
-            userIds: selectedDevelopers,
+            userIds: assignableDeveloperIds,
             addedBy: user?.id,
           });
         } catch (memberErr) {
@@ -290,11 +306,11 @@ export function ProjectForm({ open, onClose, project }: ProjectFormProps) {
         const result = await createProject.mutateAsync(cleanData);
         
         // Add project members (developers) for new project
-        if (selectedDevelopers.length > 0 && result.id) {
+        if (assignableDeveloperIds.length > 0 && result.id) {
           try {
             await addProjectMembers.mutateAsync({
               projectId: result.id,
-              userIds: selectedDevelopers,
+              userIds: assignableDeveloperIds,
               addedBy: user?.id,
             });
           } catch (memberErr) {
@@ -719,7 +735,7 @@ export function ProjectForm({ open, onClose, project }: ProjectFormProps) {
               Selecciona los desarrolladores que trabajarán en este proyecto
             </p>
             <div className="space-y-2 max-h-[200px] overflow-y-auto p-3 bg-gray-50 rounded-lg border border-gray-200">
-              {users?.filter(u => u.role === 'dev').map((developer) => (
+              {activeDevelopers.map((developer) => (
                 <div key={developer.id} className="flex items-center space-x-2">
                   <Checkbox
                     id={`dev-${developer.id}`}
@@ -770,7 +786,7 @@ export function ProjectForm({ open, onClose, project }: ProjectFormProps) {
                   </Label>
                 </div>
               ))}
-              {users?.filter(u => u.role === 'dev').length === 0 && (
+              {activeDevelopers.length === 0 && (
                 <p className="text-sm text-gray-500 text-center py-2">
                   No hay desarrolladores disponibles
                 </p>

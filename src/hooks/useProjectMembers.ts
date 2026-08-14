@@ -34,6 +34,23 @@ export function useAddProjectMembers() {
       userIds: string[]; 
       addedBy?: string;
     }) => {
+      const uniqueUserIds = Array.from(new Set(userIds));
+
+      if (uniqueUserIds.length > 0) {
+        const { data: activeUsers, error: usersError } = await supabase
+          .from('users_profiles')
+          .select('id')
+          .in('id', uniqueUserIds)
+          .eq('role', 'dev')
+          .eq('is_active', true);
+
+        if (usersError) throw usersError;
+
+        if ((activeUsers?.length ?? 0) !== uniqueUserIds.length) {
+          throw new Error('Solo se pueden asignar desarrolladores activos al proyecto');
+        }
+      }
+
       // Primero eliminamos todos los miembros existentes
       const { error: deleteError } = await supabase
         .from('project_members')
@@ -43,10 +60,10 @@ export function useAddProjectMembers() {
       if (deleteError) throw deleteError;
 
       // Si no hay usuarios para agregar, retornamos
-      if (userIds.length === 0) return [];
+      if (uniqueUserIds.length === 0) return [];
 
       // Agregamos los nuevos miembros
-      const membersToInsert = userIds.map(userId => ({
+      const membersToInsert = uniqueUserIds.map(userId => ({
         project_id: projectId,
         user_id: userId,
         added_by: addedBy,
