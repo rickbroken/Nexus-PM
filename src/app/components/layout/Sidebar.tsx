@@ -77,7 +77,7 @@ export function Sidebar() {
       name: 'Configuración',
       href: '/settings',
       icon: Settings,
-      roles: ['admin'],
+      roles: ['admin', 'dev'],
     },
   ];
 

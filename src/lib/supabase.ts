@@ -103,6 +103,7 @@ export interface Project {
   repo_url?: string;
   staging_url?: string;
   prod_url?: string;
+  logo_url?: string;
   deployment_platform?: string;
   deployment_platform_other?: string;
   domain_platform?: string;

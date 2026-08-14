@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import type { ChangeEvent } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -27,7 +28,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../ui/select';
-import { Plus, Trash2, Eye, EyeOff, X, Users } from 'lucide-react';
+import { Plus, Trash2, Eye, EyeOff, X, Users, Upload, Image as ImageIcon } from 'lucide-react';
 import { Project } from '../../../lib/supabase';
 import { toast } from 'sonner';
 import { Checkbox } from '../ui/checkbox';
@@ -48,6 +49,7 @@ const projectSchema = z.object({
   repo_url: z.string().url('URL inválida').or(z.literal('')).optional(),
   staging_url: z.string().url('URL inválida').or(z.literal('')).optional(),
   prod_url: z.string().url('URL inválida').or(z.literal('')).optional(),
+  logo_url: z.string().url('URL inválida').or(z.literal('')).optional(),
   deployment_platform: z.string().optional(),
   deployment_platform_other: z.string().optional(),
   domain_platform: z.string().optional(),
@@ -55,6 +57,10 @@ const projectSchema = z.object({
 });
 
 type ProjectFormData = z.infer<typeof projectSchema>;
+
+const PROJECT_LOGOS_BUCKET = 'project-logos';
+const PROJECT_LOGO_MAX_SIZE = 2 * 1024 * 1024;
+const PROJECT_LOGO_MIME_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
 
 interface EnvVariable {
   id: string;
@@ -82,6 +88,11 @@ export function ProjectForm({ open, onClose, project }: ProjectFormProps) {
   const [selectedTech, setSelectedTech] = useState<string>('');
   const [customTech, setCustomTech] = useState<string>('');
   const [selectedDevelopers, setSelectedDevelopers] = useState<string[]>([]);
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoPreviewUrl, setLogoPreviewUrl] = useState<string | null>(null);
+  const [removeLogo, setRemoveLogo] = useState(false);
+  const [isUploadingLogo, setIsUploadingLogo] = useState(false);
+  const logoInputRef = useRef<HTMLInputElement | null>(null);
 
   const activeDevelopers = useMemo(
     () => users?.filter((user) => user.role === 'dev' && user.is_active) ?? [],
@@ -130,11 +141,15 @@ export function ProjectForm({ open, onClose, project }: ProjectFormProps) {
           repo_url: project.repo_url || '',
           staging_url: project.staging_url || '',
           prod_url: project.prod_url || '',
+          logo_url: project.logo_url || '',
           deployment_platform: project.deployment_platform || 'sin especificar',
           deployment_platform_other: project.deployment_platform_other || '',
           domain_platform: project.domain_platform || 'sin especificar',
           domain_platform_other: project.domain_platform_other || '',
         });
+        setLogoFile(null);
+        setLogoPreviewUrl(project.logo_url || null);
+        setRemoveLogo(false);
         // Load tech stack
         setTechStack(project.tech_stack || []);
         
@@ -188,6 +203,7 @@ export function ProjectForm({ open, onClose, project }: ProjectFormProps) {
           repo_url: '',
           staging_url: '',
           prod_url: '',
+          logo_url: '',
           deployment_platform: 'sin especificar',
           deployment_platform_other: '',
           domain_platform: 'sin especificar',
@@ -196,9 +212,20 @@ export function ProjectForm({ open, onClose, project }: ProjectFormProps) {
         setEnvVariables([]);
         setTechStack([]);
         setSelectedDevelopers([]);
+        setLogoFile(null);
+        setLogoPreviewUrl(null);
+        setRemoveLogo(false);
       }
     }
   }, [open, project, reset]);
+
+  useEffect(() => {
+    return () => {
+      if (logoPreviewUrl?.startsWith('blob:')) {
+        URL.revokeObjectURL(logoPreviewUrl);
+      }
+    };
+  }, [logoPreviewUrl]);
 
   // Load assigned developers when projectMembers data is available
   useEffect(() => {
@@ -210,8 +237,122 @@ export function ProjectForm({ open, onClose, project }: ProjectFormProps) {
     }
   }, [projectMembers, project?.id, activeDeveloperIds]);
 
+  const getProjectLogoStoragePath = (logoUrl?: string | null) => {
+    if (!logoUrl) return null;
+    try {
+      const url = new URL(logoUrl);
+      const publicPath = `/storage/v1/object/public/${PROJECT_LOGOS_BUCKET}/`;
+      const pathIndex = url.pathname.indexOf(publicPath);
+      if (pathIndex === -1) return null;
+      return decodeURIComponent(url.pathname.slice(pathIndex + publicPath.length));
+    } catch {
+      return null;
+    }
+  };
+
+  const deleteProjectLogo = async (logoUrl?: string | null) => {
+    const path = getProjectLogoStoragePath(logoUrl);
+    if (!path) return;
+
+    const { error } = await supabase.storage.from(PROJECT_LOGOS_BUCKET).remove([path]);
+    if (error) {
+      console.warn('No se pudo eliminar el logo anterior:', error);
+    }
+  };
+
+  const uploadProjectLogo = async (file: File) => {
+    const extension = file.name.split('.').pop()?.toLowerCase() || 'png';
+    const fileId = typeof crypto !== 'undefined' && 'randomUUID' in crypto
+      ? crypto.randomUUID()
+      : `${Date.now()}`;
+    const projectPath = project?.id || 'pending';
+    const path = `${projectPath}/${fileId}.${extension}`;
+
+    const { error } = await supabase.storage
+      .from(PROJECT_LOGOS_BUCKET)
+      .upload(path, file, {
+        cacheControl: '3600',
+        contentType: file.type,
+        upsert: true,
+      });
+
+    if (error) throw error;
+
+    const { data } = supabase.storage.from(PROJECT_LOGOS_BUCKET).getPublicUrl(path);
+    return data.publicUrl;
+  };
+
+  const validateSquareLogo = (file: File) =>
+    new Promise<string>((resolve, reject) => {
+      if (!PROJECT_LOGO_MIME_TYPES.includes(file.type)) {
+        reject(new Error('Solo se permiten imágenes PNG, JPG o WebP'));
+        return;
+      }
+
+      if (file.size > PROJECT_LOGO_MAX_SIZE) {
+        reject(new Error('El logo no puede superar 2 MB'));
+        return;
+      }
+
+      const objectUrl = URL.createObjectURL(file);
+      const image = new Image();
+
+      image.onload = () => {
+        if (image.naturalWidth !== image.naturalHeight) {
+          URL.revokeObjectURL(objectUrl);
+          reject(new Error('El logo debe tener relación de aspecto 1:1'));
+          return;
+        }
+
+        resolve(objectUrl);
+      };
+
+      image.onerror = () => {
+        URL.revokeObjectURL(objectUrl);
+        reject(new Error('No se pudo leer la imagen seleccionada'));
+      };
+
+      image.src = objectUrl;
+    });
+
+  const handleLogoChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+
+    try {
+      const previewUrl = await validateSquareLogo(file);
+      if (logoPreviewUrl?.startsWith('blob:')) {
+        URL.revokeObjectURL(logoPreviewUrl);
+      }
+      setLogoFile(file);
+      setLogoPreviewUrl(previewUrl);
+      setRemoveLogo(false);
+    } catch (error: any) {
+      toast.error(error.message || 'Logo inválido');
+    }
+  };
+
+  const handleRemoveLogo = () => {
+    if (logoPreviewUrl?.startsWith('blob:')) {
+      URL.revokeObjectURL(logoPreviewUrl);
+    }
+    setLogoFile(null);
+    setLogoPreviewUrl(null);
+    setRemoveLogo(true);
+  };
+
   const onSubmit = async (data: ProjectFormData) => {
     try {
+      setIsUploadingLogo(true);
+      let logoUrl = project?.logo_url || null;
+
+      if (logoFile) {
+        logoUrl = await uploadProjectLogo(logoFile);
+      } else if (removeLogo) {
+        logoUrl = null;
+      }
+
       const assignableDeveloperIds = selectedDevelopers.filter((userId) =>
         activeDeveloperIds.has(userId)
       );
@@ -227,6 +368,7 @@ export function ProjectForm({ open, onClose, project }: ProjectFormProps) {
         repo_url: data.repo_url?.trim() || null,
         staging_url: data.staging_url?.trim() || null,
         prod_url: data.prod_url?.trim() || null,
+        logo_url: logoUrl,
         deployment_platform: data.deployment_platform || 'sin especificar',
         deployment_platform_other: data.deployment_platform_other?.trim() || null,
         domain_platform: data.domain_platform || 'sin especificar',
@@ -238,6 +380,9 @@ export function ProjectForm({ open, onClose, project }: ProjectFormProps) {
 
       if (project?.id) {
         await updateProject.mutateAsync({ id: project.id, ...cleanData });
+        if ((logoFile || removeLogo) && project.logo_url && project.logo_url !== logoUrl) {
+          await deleteProjectLogo(project.logo_url);
+        }
         
         // Update project members (developers)
         try {
@@ -358,9 +503,17 @@ export function ProjectForm({ open, onClose, project }: ProjectFormProps) {
       reset();
       setEnvVariables([]);
       setTechStack([]);
+      setLogoFile(null);
+      setLogoPreviewUrl(null);
+      setRemoveLogo(false);
       onClose();
     } catch (error) {
       // Error is already handled by the mutation hooks with SweetAlert2
+      if (error instanceof Error) {
+        toast.error(error.message || 'No se pudo guardar el logo del proyecto');
+      }
+    } finally {
+      setIsUploadingLogo(false);
     }
   };
 
@@ -426,6 +579,52 @@ export function ProjectForm({ open, onClose, project }: ProjectFormProps) {
             {errors.name && (
               <p className="text-sm text-red-600 mt-1">{errors.name.message}</p>
             )}
+          </div>
+
+          <div>
+            <Label>Logo del Proyecto</Label>
+            <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-center">
+              <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-gray-200 bg-gray-50">
+                {logoPreviewUrl ? (
+                  <img
+                    src={logoPreviewUrl}
+                    alt="Logo del proyecto"
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <ImageIcon className="h-8 w-8 text-gray-400" />
+                )}
+              </div>
+              <div className="flex-1 space-y-2">
+                <p className="text-sm text-gray-500">
+                  Sube una imagen cuadrada 1:1 en PNG, JPG o WebP. Máximo 2 MB.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => logoInputRef.current?.click()}
+                  >
+                    <Upload className="mr-2 h-4 w-4" />
+                    Subir Logo
+                  </Button>
+                  {logoPreviewUrl && (
+                    <Button type="button" variant="outline" onClick={handleRemoveLogo}>
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Quitar Logo
+                    </Button>
+                  )}
+                </div>
+                <Input
+                  id="project_logo"
+                  ref={logoInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  className="hidden"
+                  onChange={handleLogoChange}
+                />
+              </div>
+            </div>
           </div>
 
           <div>
@@ -805,9 +1004,9 @@ export function ProjectForm({ open, onClose, project }: ProjectFormProps) {
             </Button>
             <Button
               type="submit"
-              disabled={createProject.isPending || updateProject.isPending}
+              disabled={createProject.isPending || updateProject.isPending || isUploadingLogo}
             >
-              {createProject.isPending || updateProject.isPending
+              {createProject.isPending || updateProject.isPending || isUploadingLogo
                 ? 'Guardando...'
                 : project
                 ? 'Actualizar'

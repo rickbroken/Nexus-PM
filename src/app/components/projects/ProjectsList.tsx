@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { Badge } from '../ui/badge';
 import { Input } from '../ui/input';
 import { Button } from '../ui/button';
-import { Plus, Search, Trash2, Edit, ExternalLink, Calendar, Building2, Github, Eye, EyeOff, Copy, Cloud, Server, Zap, Globe } from 'lucide-react';
+import { Plus, Search, Trash2, Edit, ExternalLink, Calendar, Building2, Github, Eye, EyeOff, Copy, Cloud, Server, Zap, Globe, Image as ImageIcon } from 'lucide-react';
 import Alert from '@/lib/alert';
 import { toast } from 'sonner';
 import { Project, ProjectStatus } from '../../../lib/supabase';
@@ -168,6 +168,14 @@ export function ProjectsList({ onCreateClick, onEditClick }: ProjectsListProps) 
       return null;
     }
   };
+
+  const getProjectInitials = (name: string) =>
+    name
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part.charAt(0).toUpperCase())
+      .join('') || 'P';
 
   // Cargar variables de entorno del proyecto
   const loadEnvVariables = async (projectIdParam: string) => {
@@ -343,13 +351,28 @@ export function ProjectsList({ onCreateClick, onEditClick }: ProjectsListProps) 
                   onClick={() => isReadOnly && handleViewProject(project)}
                 >
                   <TableCell>
-                    <div>
-                      <div className="font-medium">{project.name}</div>
-                      {project.description && (
-                        <div className="text-xs text-gray-500 line-clamp-2 max-w-[230px] mt-1">
-                          {project.description}
-                        </div>
-                      )}
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-gray-200 bg-gray-50">
+                        {project.logo_url ? (
+                          <img
+                            src={project.logo_url}
+                            alt={`Logo de ${project.name}`}
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <span className="text-xs font-semibold text-gray-500">
+                            {getProjectInitials(project.name)}
+                          </span>
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="font-medium">{project.name}</div>
+                        {project.description && (
+                          <div className="text-xs text-gray-500 line-clamp-2 max-w-[230px] mt-1">
+                            {project.description}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </TableCell>
                   {!isReadOnly && (
@@ -569,7 +592,20 @@ export function ProjectsList({ onCreateClick, onEditClick }: ProjectsListProps) 
       <Dialog open={viewModalOpen} onOpenChange={setViewModalOpen}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="text-xl">{selectedProjectToView?.name}</DialogTitle>
+            <DialogTitle className="flex items-center gap-3 text-xl">
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-gray-200 bg-gray-50">
+                {selectedProjectToView?.logo_url ? (
+                  <img
+                    src={selectedProjectToView.logo_url}
+                    alt={`Logo de ${selectedProjectToView.name}`}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <ImageIcon className="h-5 w-5 text-gray-400" />
+                )}
+              </span>
+              <span>{selectedProjectToView?.name}</span>
+            </DialogTitle>
             <DialogDescription className="text-sm text-gray-500">
               Información técnica del proyecto
             </DialogDescription>

@@ -69,6 +69,7 @@ CREATE TABLE IF NOT EXISTS public.projects (
     repo_url TEXT,
     staging_url TEXT,
     prod_url TEXT,
+    logo_url TEXT,
     deployment_platform TEXT,
     deployment_platform_other TEXT,
     domain_platform TEXT,

@@ -48,6 +48,7 @@ export const projectSchema = z.object({
   repo_url: optionalUrl,
   staging_url: optionalUrl,
   prod_url: optionalUrl,
+  logo_url: optionalUrl,
   deployment_platform: z.string().optional().nullable(),
   deployment_platform_other: z.string().optional().nullable(),
 });

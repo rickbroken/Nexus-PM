@@ -39,6 +39,14 @@ type PasswordFormData = z.infer<typeof passwordSchema>;
 export function SettingsPage() {
   const { user, refreshUser } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
+  const isDeveloper = user?.role === 'dev';
+  const canViewPreferences = !isDeveloper;
+  const canViewSystemSettings = user?.role === 'admin';
+  const tabColumnsClass = isDeveloper
+    ? 'grid-cols-3'
+    : canViewSystemSettings
+      ? 'grid-cols-5'
+      : 'grid-cols-4';
   
   // Notificaciones
   const [notifications, setNotifications] = useState({
@@ -196,7 +204,7 @@ export function SettingsPage() {
       </div>
 
       <Tabs defaultValue="profile" className="w-full">
-        <TabsList className="grid w-full grid-cols-5 lg:w-auto">
+        <TabsList className={`grid w-full ${tabColumnsClass} lg:w-auto`}>
           <TabsTrigger value="profile" className="gap-2">
             <User className="h-4 w-4" />
             <span className="hidden sm:inline">Perfil</span>
@@ -209,11 +217,13 @@ export function SettingsPage() {
             <Bell className="h-4 w-4" />
             <span className="hidden sm:inline">Notificaciones</span>
           </TabsTrigger>
-          <TabsTrigger value="preferences" className="gap-2">
-            <Palette className="h-4 w-4" />
-            <span className="hidden sm:inline">Preferencias</span>
-          </TabsTrigger>
-          {user?.role === 'admin' && (
+          {canViewPreferences && (
+            <TabsTrigger value="preferences" className="gap-2">
+              <Palette className="h-4 w-4" />
+              <span className="hidden sm:inline">Preferencias</span>
+            </TabsTrigger>
+          )}
+          {canViewSystemSettings && (
             <TabsTrigger value="system" className="gap-2">
               <Layout className="h-4 w-4" />
               <span className="hidden sm:inline">Sistema</span>
@@ -502,6 +512,7 @@ export function SettingsPage() {
         </TabsContent>
 
         {/* Preferencias */}
+        {canViewPreferences && (
         <TabsContent value="preferences" className="space-y-4">
           <Card>
             <CardHeader>
@@ -582,9 +593,10 @@ export function SettingsPage() {
             </CardContent>
           </Card>
         </TabsContent>
+        )}
 
         {/* Sistema (Solo Admin) */}
-        {user?.role === 'admin' && (
+        {canViewSystemSettings && (
           <TabsContent value="system" className="space-y-4">
             <Card>
               <CardHeader>
