@@ -18,7 +18,7 @@ export function MainLayout() {
       )}>
         <Header />
         
-        <main className="p-4 lg:px-8 lg:py-2">
+        <main className="min-w-0 p-3 sm:p-4 lg:px-8 lg:py-4">
           <Outlet />
         </main>
       </div>

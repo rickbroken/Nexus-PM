@@ -11,13 +11,14 @@ export function Header() {
   } = useUIStore();
 
   return (
-    <header className="h-16 bg-card border-b border-border flex items-center justify-between px-4 lg:px-8 transition-colors">
-      <div className="flex items-center gap-4">
+    <header className="sticky top-0 z-30 h-16 bg-card border-b border-border flex items-center justify-between gap-3 px-3 transition-colors sm:px-4 lg:px-8">
+      <div className="flex min-w-0 items-center gap-2 sm:gap-4">
         <Button
           variant="ghost"
           size="icon"
           onClick={toggleSidebar}
           className="lg:hidden"
+          aria-label="Abrir menú"
         >
           <Menu className="h-6 w-6" />
         </Button>
@@ -27,7 +28,7 @@ export function Header() {
         {/* Botón de colapsar/expandir sidebar - solo visible en desktop */}
         <button
           onClick={toggleSidebarCollapse}
-          className="hidden lg:flex items-center justify-center p-2 rounded-lg bg-zinc-800 text-white hover:bg-zinc-700 transition-colors cursor-pointer"
+          className="hidden lg:flex h-11 w-11 items-center justify-center rounded-lg bg-zinc-800 text-white hover:bg-zinc-700 transition-colors cursor-pointer"
           title={
             sidebarCollapsed ? "Expandir menú" : "Colapsar menú"
           }

@@ -100,9 +100,9 @@ export function Sidebar() {
 
       {/* Sidebar */}
       <aside
-        className={cn(
-          'fixed top-0 left-0 z-50 h-full bg-white text-zinc-900 border-r border-zinc-200 transform transition-all duration-300 ease-in-out lg:translate-x-0',
-          sidebarCollapsed ? 'w-16' : 'w-64',
+          className={cn(
+          'fixed top-0 left-0 z-50 h-full max-w-[calc(100vw-2rem)] bg-white text-zinc-900 border-r border-zinc-200 transform transition-all duration-300 ease-in-out lg:translate-x-0',
+          sidebarCollapsed ? 'w-16' : 'w-72 sm:w-64',
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         )}
       >
@@ -125,7 +125,7 @@ export function Sidebar() {
                 </div>
                 <button
                   onClick={() => setSidebarOpen(false)}
-                  className="lg:hidden text-zinc-500 hover:text-zinc-900 cursor-pointer h-8 w-8 flex items-center justify-center rounded-md hover:bg-gray-100 transition-colors"
+                  className="lg:hidden text-zinc-500 hover:text-zinc-900 cursor-pointer h-11 w-11 flex items-center justify-center rounded-md hover:bg-gray-100 transition-colors"
                   aria-label="Cerrar menú"
                 >
                   <X className="h-5 w-5" />
@@ -158,7 +158,7 @@ export function Sidebar() {
                   onClick={() => setSidebarOpen(false)}
                   className={cn(
                     'flex items-center rounded-lg transition-colors',
-                    sidebarCollapsed ? 'justify-center p-2.5' : 'gap-3 px-3 py-2',
+                    sidebarCollapsed ? 'justify-center p-2.5 min-h-11' : 'gap-3 px-3 py-3 min-h-11',
                     isActive
                       ? 'bg-zinc-900 text-white font-medium'
                       : 'text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900'
@@ -194,7 +194,7 @@ export function Sidebar() {
               onClick={handleSignOut}
               className={cn(
                 "w-full flex items-center rounded-lg bg-zinc-100 hover:bg-zinc-200 text-zinc-900 transition-colors cursor-pointer",
-                sidebarCollapsed ? 'justify-center p-2.5' : 'justify-center gap-2 px-3 py-2'
+                sidebarCollapsed ? 'justify-center p-2.5 min-h-11' : 'justify-center gap-2 px-3 py-3 min-h-11'
               )}
               title={sidebarCollapsed ? 'Cerrar Sesión' : undefined}
             >
