@@ -59,6 +59,15 @@ const priorityLabels = {
   urgent: 'Urgente',
 };
 
+function getProjectInitials(name: string) {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part.charAt(0).toUpperCase())
+    .join('') || 'P';
+}
+
 interface TaskCardProps {
   task: Task;
   onTaskClick: (task: Task) => void;
@@ -149,8 +158,21 @@ function TaskCard({ task, onTaskClick, userRole }: TaskCardProps) {
             {/* Nombre del proyecto */}
             {task.project && (
               <div className="flex items-center gap-1.5">
-                <Badge variant="outline" className="text-xs font-normal text-gray-600 border-gray-300">
-                  📁 {task.project.name}
+                <Badge variant="outline" className="gap-1.5 pl-1 pr-2 text-xs font-normal text-gray-600 border-gray-300">
+                  <span className="flex h-4 w-4 shrink-0 items-center justify-center overflow-hidden rounded border border-gray-200 bg-gray-50">
+                    {task.project.logo_url ? (
+                      <img
+                        src={task.project.logo_url}
+                        alt={`Logo de ${task.project.name}`}
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <span className="text-[8px] font-semibold leading-none text-gray-500">
+                        {getProjectInitials(task.project.name)}
+                      </span>
+                    )}
+                  </span>
+                  <span className="max-w-[140px] truncate">{task.project.name}</span>
                 </Badge>
               </div>
             )}
