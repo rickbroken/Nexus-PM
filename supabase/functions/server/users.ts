@@ -31,6 +31,87 @@ interface CreateUserRequest {
   avatar_url?: string;
 }
 
+const validRoles = ["admin", "pm", "dev", "advisor"] as const;
+
+const getErrorMessage = (error: unknown, fallback = "Error desconocido") => {
+  if (error instanceof Error && error.message && error.message !== "{}") {
+    return error.message;
+  }
+
+  if (error && typeof error === "object") {
+    const record = error as Record<string, unknown>;
+
+    for (const key of ["message", "msg", "error", "error_description"]) {
+      const value = record[key];
+      if (typeof value === "string" && value && value !== "{}") {
+        return value;
+      }
+    }
+
+    const json = JSON.stringify(error);
+    if (json && json !== "{}") {
+      return json;
+    }
+  }
+
+  return fallback;
+};
+
+const getErrorDetails = (error: unknown) => {
+  if (!error || typeof error !== "object") return undefined;
+
+  const record = error as Record<string, unknown>;
+  return {
+    code: record.code,
+    status: record.status,
+    name: record.name,
+    details: record.details,
+    hint: record.hint,
+  };
+};
+
+const normalizeCreateUserBody = (body: CreateUserRequest) => {
+  const email = body.email?.trim().toLowerCase();
+  const fullName = body.full_name?.trim();
+  const password = body.password;
+  const role = body.role;
+  const avatarUrl = body.avatar_url?.trim() || null;
+
+  if (!email || !password || !fullName || !role) {
+    return { error: "Faltan campos requeridos" };
+  }
+
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return { error: "Email inválido" };
+  }
+
+  if (password.length < 6) {
+    return { error: "La contraseña debe tener al menos 6 caracteres" };
+  }
+
+  if (!validRoles.includes(role)) {
+    return { error: "Rol inválido" };
+  }
+
+  if (avatarUrl) {
+    try {
+      new URL(avatarUrl);
+    } catch {
+      return { error: "URL de avatar inválida" };
+    }
+  }
+
+  return {
+    data: {
+      email,
+      password,
+      full_name: fullName,
+      role,
+      avatar_url: avatarUrl,
+    },
+  };
+};
+
 /**
  * Create a new user with email already confirmed
  * POST /users/create
@@ -79,11 +160,14 @@ export const createUser = async (c: Context) => {
     console.log(`✅ User ${profile.email} is admin, proceeding...`);
 
     // Parse request body
-    const body: CreateUserRequest = await c.req.json();
+    const requestBody: CreateUserRequest = await c.req.json();
+    const normalized = normalizeCreateUserBody(requestBody);
 
-    if (!body.email || !body.password || !body.full_name || !body.role) {
-      return c.json({ error: "Missing required fields" }, 400);
+    if (normalized.error || !normalized.data) {
+      return c.json({ error: normalized.error ?? "Payload inválido" }, 400);
     }
+
+    const body = normalized.data;
 
     // Create user with admin client (auto-confirms email)
     const { data: authData, error: createError } = await adminClient.auth.admin.createUser({
@@ -98,15 +182,20 @@ export const createUser = async (c: Context) => {
 
     if (createError) {
       console.error("❌ [Supabase] Error creating user in auth:", createError);
+      const errorMessage = getErrorMessage(createError, "No se pudo crear el usuario en Auth");
+      const errorDetails = getErrorDetails(createError);
       
       // Handle specific error cases
-      if (createError.message.includes("already been registered") || createError.message.includes("email_exists")) {
+      if (errorMessage.includes("already been registered") || errorMessage.includes("email_exists")) {
         return c.json({ 
           error: "Ya existe un usuario con este email. Por favor usa otro email." 
         }, 409); // 409 Conflict
       }
       
-      return c.json({ error: createError.message }, 400);
+      return c.json({
+        error: errorMessage,
+        ...errorDetails,
+      }, 400);
     }
 
     if (!authData.user) {
@@ -145,7 +234,11 @@ export const createUser = async (c: Context) => {
         // Rollback: delete the auth user
         await adminClient.auth.admin.deleteUser(authData.user.id);
         
-        return c.json({ error: "Failed to update user profile" }, 500);
+        return c.json({
+          error: "No se pudo actualizar el perfil del usuario",
+          details: getErrorMessage(profileUpdateError),
+          ...getErrorDetails(profileUpdateError),
+        }, 500);
       }
       
       profileData = updatedProfile;
@@ -172,7 +265,11 @@ export const createUser = async (c: Context) => {
         // Rollback: delete the auth user
         await adminClient.auth.admin.deleteUser(authData.user.id);
         
-        return c.json({ error: "Failed to create user profile" }, 500);
+        return c.json({
+          error: "No se pudo crear el perfil del usuario",
+          details: getErrorMessage(profileInsertError),
+          ...getErrorDetails(profileInsertError),
+        }, 500);
       }
       
       profileData = newProfile;

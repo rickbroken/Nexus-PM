@@ -1,8 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useUsers, useUpdateUserProfile } from '../../../hooks/useUsers';
-import { UserProfile } from '../../../lib/supabase';
+import { UserProfile, UserRole } from '../../../lib/supabase';
 import { Button } from '../ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Input } from '../ui/input';
 import { Badge } from '../ui/badge';
 import { Avatar, AvatarFallback } from '../ui/avatar';
@@ -10,32 +9,76 @@ import { Plus, Search, Edit, UserCheck, UserX, Shield } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { UserForm } from './UserForm';
 import { LoadingSpinner } from '../ui/loading-spinner';
+import { Pagination } from '../ui/pagination';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '../ui/table';
 
-const roleColors = {
+const roleColors: Record<UserRole, string> = {
   admin: 'bg-red-100 text-red-800',
   pm: 'bg-blue-100 text-blue-800',
   dev: 'bg-green-100 text-green-800',
   advisor: 'bg-purple-100 text-purple-800',
 };
 
-const roleLabels = {
+const roleLabels: Record<UserRole, string> = {
   admin: 'Administrador',
   pm: 'Project Manager',
   dev: 'Developer',
   advisor: 'Asesor Financiero',
 };
 
+const getUserInitials = (name: string) =>
+  name
+    .split(' ')
+    .filter(Boolean)
+    .map((part) => part[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase();
+
 export function UsersPage() {
   const { data: users, isLoading } = useUsers();
   const updateUser = useUpdateUserProfile();
   const [searchTerm, setSearchTerm] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
   const [formOpen, setFormOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
 
-  const filteredUsers = users?.filter(user =>
-    user.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.email.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredUsers = useMemo(() => {
+    const search = searchTerm.trim().toLowerCase();
+
+    if (!users) return [];
+    if (!search) return users;
+
+    return users.filter((user) =>
+      user.full_name.toLowerCase().includes(search) ||
+      user.email.toLowerCase().includes(search) ||
+      roleLabels[user.role].toLowerCase().includes(search)
+    );
+  }, [searchTerm, users]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredUsers.length / itemsPerPage));
+  const paginatedUsers = filteredUsers.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
   );
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, itemsPerPage]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
 
   const handleEdit = (user: UserProfile) => {
     setSelectedUser(user);
@@ -100,32 +143,38 @@ export function UsersPage() {
         />
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {filteredUsers?.map((user) => (
-          <Card key={user.id} className={`hover:shadow-lg transition-shadow ${!user.is_active ? 'opacity-60' : ''}`}>
-            <CardHeader>
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-3">
-                  <Avatar className="h-12 w-12">
-                    <AvatarFallback className="text-lg">
-                      {user.full_name.split(' ').map(n => n[0]).join('').toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <CardTitle className="text-lg">{user.full_name}</CardTitle>
-                    <p className="text-sm text-gray-500">{user.email}</p>
+      <div className="rounded-lg border bg-white shadow-sm">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Usuario</TableHead>
+              <TableHead>Rol</TableHead>
+              <TableHead>Estado</TableHead>
+              <TableHead>Creado</TableHead>
+              <TableHead className="w-[180px] text-right">Acciones</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {paginatedUsers.map((user) => (
+              <TableRow key={user.id} className={!user.is_active ? 'opacity-60' : ''}>
+                <TableCell>
+                  <div className="flex items-center gap-3">
+                    <Avatar className="h-10 w-10">
+                      <AvatarFallback>{getUserInitials(user.full_name)}</AvatarFallback>
+                    </Avatar>
+                    <div className="min-w-0">
+                      <p className="font-medium text-gray-950">{user.full_name}</p>
+                      <p className="text-sm text-gray-500">{user.email}</p>
+                    </div>
                   </div>
-                </div>
-              </div>
-            </CardHeader>
-            
-            <CardContent>
-              <div className="space-y-4">
-                <div className="flex items-center gap-2">
+                </TableCell>
+                <TableCell>
                   <Badge className={roleColors[user.role]}>
                     <Shield className="h-3 w-3 mr-1" />
                     {roleLabels[user.role]}
                   </Badge>
+                </TableCell>
+                <TableCell>
                   {user.is_active ? (
                     <Badge variant="outline" className="bg-green-50 text-green-700">
                       <UserCheck className="h-3 w-3 mr-1" />
@@ -137,44 +186,59 @@ export function UsersPage() {
                       Inactivo
                     </Badge>
                   )}
-                </div>
+                </TableCell>
+                <TableCell className="text-gray-600">
+                  {new Date(user.created_at).toLocaleDateString('es-ES')}
+                </TableCell>
+                <TableCell>
+                  <div className="flex justify-end gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleEdit(user)}
+                    >
+                      <Edit className="mr-2 h-4 w-4" />
+                      Editar
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => toggleUserStatus(user)}
+                      className={user.is_active ? 'text-red-600 hover:text-red-700' : 'text-green-600 hover:text-green-700'}
+                      title={user.is_active ? 'Desactivar usuario' : 'Activar usuario'}
+                    >
+                      {user.is_active ? (
+                        <UserX className="h-4 w-4" />
+                      ) : (
+                        <UserCheck className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
 
-                <div className="text-xs text-gray-500">
-                  <p>Creado: {new Date(user.created_at).toLocaleDateString('es-ES')}</p>
-                </div>
-
-                <div className="flex gap-2 pt-4 border-t">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="flex-1"
-                    onClick={() => handleEdit(user)}
-                  >
-                    <Edit className="mr-2 h-4 w-4" />
-                    Editar
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => toggleUserStatus(user)}
-                    className={user.is_active ? 'text-red-600 hover:text-red-700' : 'text-green-600 hover:text-green-700'}
-                  >
-                    {user.is_active ? (
-                      <UserX className="h-4 w-4" />
-                    ) : (
-                      <UserCheck className="h-4 w-4" />
-                    )}
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+        {filteredUsers.length === 0 ? (
+          <div className="py-12 text-center">
+            <p className="text-gray-500">No se encontraron usuarios</p>
+          </div>
+        ) : (
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={setCurrentPage}
+            itemsPerPage={itemsPerPage}
+            totalItems={filteredUsers.length}
+            onItemsPerPageChange={setItemsPerPage}
+          />
+        )}
       </div>
 
-      {filteredUsers?.length === 0 && (
+      {users?.length === 0 && !searchTerm && (
         <div className="text-center py-12">
-          <p className="text-gray-500">No se encontraron usuarios</p>
+          <p className="text-gray-500">No hay usuarios registrados</p>
         </div>
       )}
 

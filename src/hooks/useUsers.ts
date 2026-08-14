@@ -43,6 +43,13 @@ export function useCreateUser() {
         throw new Error('No hay sesión activa');
       }
 
+      const payload = {
+        ...newUser,
+        email: newUser.email.trim().toLowerCase(),
+        full_name: newUser.full_name.trim(),
+        avatar_url: newUser.avatar_url?.trim() || undefined,
+      };
+
       // Call backend endpoint to create user with email confirmed
       const response = await fetch(
         `https://${projectId}.supabase.co/functions/v1/server/users/create`,
@@ -52,13 +59,24 @@ export function useCreateUser() {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${session.access_token}`,
           },
-          body: JSON.stringify(newUser),
+          body: JSON.stringify(payload),
         }
       );
 
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Error al crear usuario');
+        let error: any = null;
+
+        try {
+          error = await response.json();
+        } catch {
+          error = null;
+        }
+
+        const message = [error?.error, error?.details, error?.code]
+          .filter(Boolean)
+          .join(' - ');
+
+        throw new Error(message || `Error al crear usuario (${response.status})`);
       }
 
       const result = await response.json();
