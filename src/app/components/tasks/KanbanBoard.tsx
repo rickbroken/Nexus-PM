@@ -155,28 +155,6 @@ function TaskCard({ task, onTaskClick, userRole }: TaskCardProps) {
         
         <CardContent className="p-3 pt-6">
           <div className="space-y-2">
-            {/* Nombre del proyecto */}
-            {task.project && (
-              <div className="flex items-center gap-1.5">
-                <Badge variant="outline" className="gap-1.5 pl-1 pr-2 text-xs font-normal text-gray-600 border-gray-300">
-                  <span className="flex h-4 w-4 shrink-0 items-center justify-center overflow-hidden rounded border border-gray-200 bg-gray-50">
-                    {task.project.logo_url ? (
-                      <img
-                        src={task.project.logo_url}
-                        alt={`Logo de ${task.project.name}`}
-                        className="h-full w-full object-cover"
-                      />
-                    ) : (
-                      <span className="text-[8px] font-semibold leading-none text-gray-500">
-                        {getProjectInitials(task.project.name)}
-                      </span>
-                    )}
-                  </span>
-                  <span className="max-w-[140px] truncate">{task.project.name}</span>
-                </Badge>
-              </div>
-            )}
-
             {/* Indicador de observación sin leer (solo para PM) */}
             {isManagerRole && task.dev_notes && !task.observation_read_by_pm && (
               <div className="flex items-center gap-1.5">
@@ -245,37 +223,61 @@ function TaskCard({ task, onTaskClick, userRole }: TaskCardProps) {
               <p className="text-xs text-gray-600 line-clamp-2 leading-tight">{task.description}</p>
             )}
 
-            <div className="flex items-center justify-between gap-2">
-              {task.assignee ? (
-                <div className="flex items-center gap-2">
-                  <Avatar className="h-6 w-6">
-                    <AvatarFallback className="text-xs">
-                      {task.assignee.full_name.substring(0, 2).toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex flex-col">
-                    <span className="text-xs text-gray-900 font-medium">
-                      {task.assignee.full_name}
-                    </span>
-                    {isManagerRole && (
-                      <span className="text-xs text-gray-500">
-                        Developer
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                {task.assignee ? (
+                  <div className="flex min-w-0 items-center gap-2">
+                    <Avatar className="h-6 w-6 shrink-0">
+                      <AvatarFallback className="text-xs">
+                        {task.assignee.full_name.substring(0, 2).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex min-w-0 flex-col">
+                      <span className="truncate text-xs text-gray-900 font-medium">
+                        {task.assignee.full_name}
                       </span>
-                    )}
+                      {isManagerRole && (
+                        <span className="text-xs text-gray-500">
+                          Developer
+                        </span>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ) : (
-                <div className="flex items-center gap-1 text-xs text-gray-400">
-                  <User className="h-3 w-3" />
-                  <span>Sin asignar</span>
-                </div>
-              )}
+                ) : (
+                  <div className="flex items-center gap-1 text-xs text-gray-400">
+                    <User className="h-3 w-3" />
+                    <span>Sin asignar</span>
+                  </div>
+                )}
 
-              {task.due_date && (
-                <div className={`flex items-center gap-1 text-xs ${isOverdue ? 'text-red-600 font-medium' : 'text-gray-500'}`}>
-                  {isOverdue && <AlertCircle className="h-3 w-3" />}
-                  <Clock className="h-3 w-3" />
-                  {format(parseLocalDate(task.due_date)!, 'dd/MM', { locale: es })}
+                {task.due_date && (
+                  <div className={`flex shrink-0 items-center gap-1 text-xs ${isOverdue ? 'text-red-600 font-medium' : 'text-gray-500'}`}>
+                    {isOverdue && <AlertCircle className="h-3 w-3" />}
+                    <Clock className="h-3 w-3" />
+                    {format(parseLocalDate(task.due_date)!, 'dd/MM', { locale: es })}
+                  </div>
+                )}
+              </div>
+
+              {/* Nombre del proyecto */}
+              {task.project && (
+                <div className="flex justify-end">
+                  <Badge variant="outline" className="max-w-full gap-2 py-1 pl-1.5 pr-2.5 text-xs font-normal text-gray-600 border-gray-300">
+                    <span className="flex h-5 w-5 shrink-0 items-center justify-center overflow-hidden rounded border border-gray-200 bg-gray-50">
+                      {task.project.logo_url ? (
+                        <img
+                          src={task.project.logo_url}
+                          alt={`Logo de ${task.project.name}`}
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <span className="text-[9px] font-semibold leading-none text-gray-500">
+                          {getProjectInitials(task.project.name)}
+                        </span>
+                      )}
+                    </span>
+                    <span className="max-w-[180px] truncate">{task.project.name}</span>
+                  </Badge>
                 </div>
               )}
             </div>
